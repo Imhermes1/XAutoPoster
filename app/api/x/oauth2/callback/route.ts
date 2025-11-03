@@ -68,7 +68,8 @@ export async function GET(req: NextRequest) {
     updated_at: new Date().toISOString(),
   }).neq('id', '00000000-0000-0000-0000-000000000000');
 
-  const res = NextResponse.redirect('/');
+  const origin = `${url.protocol}//${url.host}`;
+  const res = NextResponse.redirect(`${origin}/`);
   res.cookies.delete('x_oauth2_state');
   res.cookies.delete('x_oauth2_verifier');
   res.cookies.delete('x_oauth2_redirect');
