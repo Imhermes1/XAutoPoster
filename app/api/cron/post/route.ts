@@ -125,6 +125,11 @@ async function handlePost(req: Request) {
       for (const candidate of candidates) {
         candidatesEvaluated++;
 
+        // Skip candidates without ID
+        if (!candidate.id) {
+          continue;
+        }
+
         // Analyze if not already analyzed
         let analysis;
         if (candidate.overall_score) {
@@ -136,7 +141,19 @@ async function handlePost(req: Request) {
             concerns: [],
           };
         } else {
-          analysis = await analyzeContent(candidate, analysisContext, runId!);
+          // At this point we know candidate.id exists due to the guard above
+          analysis = await analyzeContent(
+            {
+              id: candidate.id,
+              type: candidate.type,
+              title: candidate.title,
+              text: candidate.text,
+              url: candidate.url,
+              source: candidate.source,
+            },
+            analysisContext,
+            runId!
+          );
         }
 
         if (analysis.decision === 'approved' && analysis.scores.overall_score > bestScore) {
