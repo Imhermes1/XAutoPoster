@@ -37,6 +37,7 @@ export default function Page() {
   const [config, setConfig] = useState<AutomationConfig | null>(null);
   const [media, setMedia] = useState<Media[]>([]);
   const [usageStats, setUsageStats] = useState<any>(null);
+  const [authStatus, setAuthStatus] = useState<any>(null);
 
   // Inputs
   const [newUrl, setNewUrl] = useState('');
@@ -58,7 +59,7 @@ export default function Page() {
 
   const refresh = async () => {
     try {
-      const [s, t, h, a, k, cand, c, m, u] = await Promise.all([
+      const [s, t, h, a, k, cand, c, m, u, auth] = await Promise.all([
         fetch('/api/admin/sources').then(r => r.json()),
         fetch('/api/admin/topics').then(r => r.json()),
         fetch('/api/admin/history?limit=20').then(r => r.json()),
@@ -68,6 +69,7 @@ export default function Page() {
         fetch('/api/admin/config').then(r => r.json()).catch(() => ({})),
         fetch('/api/admin/media').then(r => r.json()).catch(() => ({ media: [] })),
         fetch('/api/admin/usage').then(r => r.json()).catch(() => ({})),
+        fetch('/api/admin/x/auth-status').then(r => r.json()).catch(() => ({ authenticated: false })),
       ]);
       setSources(s.sources || []);
       setTopics(t.topics || []);
@@ -78,6 +80,7 @@ export default function Page() {
       setConfig(c.config || null);
       setMedia(m.media || []);
       setUsageStats(u);
+      setAuthStatus(auth);
       setBrandVoiceInstructions(c.config?.brand_voice_instructions || '');
     } catch (e) {
       console.error('refresh failed', e);
@@ -351,6 +354,37 @@ export default function Page() {
       {showAdmin && (
         <aside style={adminSidebar}>
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>Admin Settings</h2>
+
+          {/* X Account Status */}
+          <div style={{ ...section, backgroundColor: authStatus?.authenticated ? '#dcfce7' : '#fee2e2', marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>X Account Status</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                backgroundColor: authStatus?.authenticated ? '#16a34a' : '#dc2626'
+              }} />
+              <div style={{ fontSize: 16, fontWeight: 700, color: authStatus?.authenticated ? '#16a34a' : '#dc2626' }}>
+                {authStatus?.authenticated ? 'Connected' : 'Not Connected'}
+              </div>
+            </div>
+            {authStatus?.authenticated && authStatus?.username && (
+              <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                {authStatus.username}
+              </div>
+            )}
+            {!authStatus?.authenticated && (
+              <div style={{ fontSize: 11, color: '#666', marginTop: 8, padding: 8, backgroundColor: '#fff', borderRadius: 4 }}>
+                Configure X API credentials in environment variables to connect your account.
+              </div>
+            )}
+            {authStatus?.hasCredentials && (
+              <div style={{ fontSize: 10, color: '#666', marginTop: 8 }}>
+                Credentials: {Object.entries(authStatus.hasCredentials).filter(([, v]) => v).map(([k]) => k).join(', ')}
+              </div>
+            )}
+          </div>
 
           {/* Automation Status */}
           <div style={{ ...section, backgroundColor: config?.enabled ? '#dcfce7' : '#fee2e2' }}>
