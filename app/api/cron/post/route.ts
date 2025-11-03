@@ -7,16 +7,24 @@ import { getPostCount, getUnusedManualTopics, markTopicAsUsed, savePostHistory }
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  return handlePost();
+export async function GET(req: Request) {
+  return handlePost(req);
 }
 
-export async function POST() {
-  return handlePost();
+export async function POST(req: Request) {
+  return handlePost(req);
 }
 
-async function handlePost() {
+async function handlePost(req: Request) {
   try {
+    const secret = process.env.CRON_SECRET;
+    if (secret) {
+      const auth = req.headers.get('authorization') || '';
+      const expected = `Bearer ${secret}`;
+      if (auth !== expected) {
+        return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+      }
+    }
     const count = await getPostCount(1);
     if (count >= DAILY_POST_LIMIT) {
       return NextResponse.json({ skipped: true, reason: 'daily limit reached', count });
@@ -55,4 +63,3 @@ async function handlePost() {
     return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
   }
 }
-
