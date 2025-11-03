@@ -1,0 +1,334 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+import { useToast } from './Toast';
+
+export default function ManualControls({ onRefresh }: { onRefresh: () => void }) {
+  const { showToast } = useToast();
+  const [compose, setCompose] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [aiImproving, setAiImproving] = useState(false);
+  const [quoting, setQuoting] = useState(false);
+  const [tweetToQuote, setTweetToQuote] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [ingesting, setIngesting] = useState(false);
+
+  useEffect(() => {
+    fetchCandidates();
+  }, []);
+
+  const fetchCandidates = async () => {
+    try {
+      const res = await fetch('/api/admin/candidates?limit=10');
+      const data = await res.json();
+      setCandidates(data.items || []);
+    } catch (e) {
+      console.error('Failed to fetch candidates:', e);
+    }
+  };
+
+  const aiEnhance = async () => {
+    if (!compose.trim() || aiImproving) return;
+    setAiImproving(true);
+    try {
+      const res = await fetch('/api/admin/ai/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: compose }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCompose(data.text);
+        showToast('success', 'Text Enhanced', 'AI improved your text');
+      } else {
+        showToast('error', 'Enhancement Failed', data.error || 'Failed to enhance text');
+      }
+    } catch (e: any) {
+      showToast('error', 'Enhancement Failed', e.message);
+    } finally {
+      setAiImproving(false);
+    }
+  };
+
+  const postNow = async () => {
+    if (!compose.trim() || compose.length > 280) return;
+    setPosting(true);
+    try {
+      const res = await fetch('/api/admin/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: compose, image_url: imageUrl || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Post failed');
+
+      setCompose('');
+      setImageUrl('');
+      showToast('success', 'Posted Successfully!', 'Your post is now live on X');
+      onRefresh();
+    } catch (e: any) {
+      showToast('error', 'Post Failed', e.message);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const quoteNow = async (useAi: boolean) => {
+    if (!tweetToQuote.trim()) return;
+    setQuoting(true);
+    try {
+      let text = compose;
+      if (useAi || !text.trim()) {
+        showToast('info', 'Generating Comment', 'AI is writing a comment...');
+        const resAi = await fetch('/api/admin/ai/enhance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text || 'Add a concise, insightful comment.' }),
+        });
+        const dataAi = await resAi.json();
+        if (resAi.ok) text = dataAi.text;
+        else throw new Error(dataAi.error || 'AI failed');
+      }
+
+      const res = await fetch('/api/admin/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, quote_tweet_id: tweetToQuote }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Quote failed');
+
+      setTweetToQuote('');
+      setCompose('');
+      showToast('success', 'Quote Tweet Posted!', 'Successfully quoted the tweet');
+      onRefresh();
+    } catch (e: any) {
+      showToast('error', 'Quote Failed', e.message);
+    } finally {
+      setQuoting(false);
+    }
+  };
+
+  const ingestNow = async () => {
+    setIngesting(true);
+    showToast('info', 'Ingesting Content', 'Fetching from all sources...');
+    try {
+      const res = await fetch('/api/admin/candidates/ingest', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('success', 'Ingestion Complete', `Found ${data.inserted || 0} new candidates`);
+        fetchCandidates();
+      } else {
+        showToast('error', 'Ingestion Failed', data.error || 'Failed to ingest');
+      }
+    } catch (e: any) {
+      showToast('error', 'Ingestion Failed', e.message);
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  const aiQuoteCandidate = async (id: string) => {
+    showToast('info', 'Processing', 'Generating AI comment and posting...');
+    try {
+      const res = await fetch(`/api/admin/candidates/${id}/quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast('error', 'Quote Failed', data.error || 'Failed to quote');
+      } else {
+        showToast('success', 'Quote Posted!', 'Successfully quoted the candidate');
+        fetchCandidates();
+        onRefresh();
+      }
+    } catch (e: any) {
+      showToast('error', 'Quote Failed', e.message);
+    }
+  };
+
+  const colors = {
+    primary: '#2563eb',
+    success: '#16a34a',
+    danger: '#dc2626',
+    warning: '#f59e0b',
+    gray: { 50: '#f9fafb', 100: '#f3f4f6', 200: '#e5e7eb', 300: '#d1d5db', 600: '#666', 900: '#111827' }
+  };
+
+  const section: React.CSSProperties = {
+    padding: 20,
+    border: `1px solid ${colors.gray[200]}`,
+    borderRadius: 8,
+    background: '#fff',
+    marginBottom: 16,
+  };
+
+  const input: React.CSSProperties = {
+    padding: '10px 12px',
+    border: `1px solid ${colors.gray[300]}`,
+    borderRadius: 6,
+    fontSize: 14,
+    width: '100%',
+    boxSizing: 'border-box',
+  };
+
+  const button: React.CSSProperties = {
+    padding: '10px 16px',
+    borderRadius: 6,
+    border: 'none',
+    background: colors.primary,
+    color: 'white',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 600,
+    transition: 'all 0.2s',
+  };
+
+  return (
+    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      {/* Compose Section */}
+      <div style={section}>
+        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>✍️ Compose Post</h3>
+        <textarea
+          value={compose}
+          onChange={e => setCompose(e.target.value)}
+          placeholder="What's happening?"
+          style={{ ...input, minHeight: 120, marginBottom: 12, fontFamily: 'inherit' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: compose.length > 280 ? colors.danger : compose.length > 240 ? colors.warning : colors.gray[600],
+          }}>
+            {compose.length}/280
+          </div>
+          <div style={{ fontSize: 12, color: colors.gray[600] }}>
+            {280 - compose.length} characters remaining
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={aiEnhance}
+            disabled={!compose.trim() || aiImproving}
+            style={{ ...button, background: colors.warning }}
+          >
+            {aiImproving ? '⟳ Improving...' : 'AI Improve'}
+          </button>
+          <button
+            onClick={postNow}
+            disabled={!compose.trim() || compose.length > 280 || posting}
+            style={{ ...button, background: colors.success }}
+          >
+            {posting ? 'Posting...' : 'Post Now'}
+          </button>
+        </div>
+      </div>
+
+      {/* Quote Tweet Section */}
+      <div style={section}>
+        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>💬 Quote Tweet</h3>
+        <input
+          placeholder="Tweet ID or URL"
+          value={tweetToQuote}
+          onChange={e => setTweetToQuote(e.target.value)}
+          style={{ ...input, marginBottom: 12 }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => quoteNow(true)}
+            disabled={!tweetToQuote || quoting}
+            style={button}
+          >
+            {quoting ? 'Processing...' : 'AI Comment & Quote'}
+          </button>
+          <button
+            onClick={() => quoteNow(false)}
+            disabled={!tweetToQuote || quoting || !compose.trim()}
+            style={{ ...button, background: colors.gray[600] }}
+          >
+            Quote Now
+          </button>
+        </div>
+      </div>
+
+      {/* Image Post Section */}
+      <div style={section}>
+        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>🖼️ Post with Image</h3>
+        <input
+          placeholder="Image URL"
+          value={imageUrl}
+          onChange={e => setImageUrl(e.target.value)}
+          style={input}
+        />
+        <p style={{ fontSize: 12, color: colors.gray[600], marginTop: 8 }}>
+          Downloads and re-uploads the image to attach it to your post
+        </p>
+      </div>
+
+      {/* Candidates Section */}
+      <div style={section}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>🎯 Candidates</h3>
+          <button
+            onClick={ingestNow}
+            disabled={ingesting}
+            style={{ ...button, padding: '8px 16px', fontSize: 13 }}
+          >
+            {ingesting ? 'Ingesting...' : 'Ingest Now'}
+          </button>
+        </div>
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {candidates.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: colors.gray[600] }}>
+              No candidates yet. Click "Ingest Now" to fetch content.
+            </div>
+          ) : (
+            candidates.map(c => (
+              <div
+                key={c.id}
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  padding: 12,
+                  marginBottom: 12,
+                  background: colors.gray[50],
+                  border: `1px solid ${colors.gray[200]}`,
+                  borderRadius: 6,
+                  alignItems: 'center',
+                }}
+              >
+                {c.image_url && (
+                  <img
+                    src={c.image_url}
+                    alt="thumb"
+                    style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4 }}
+                  />
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.gray[600], marginBottom: 4 }}>
+                    {c.type.toUpperCase()} — {c.source}
+                  </div>
+                  <div style={{ fontSize: 14, color: colors.gray[900] }}>
+                    {c.title || c.text?.substring(0, 100) || 'No title'}
+                  </div>
+                </div>
+                {c.type === 'tweet' && (
+                  <button
+                    onClick={() => aiQuoteCandidate(c.id)}
+                    style={{ ...button, padding: '8px 12px', fontSize: 13, background: colors.success }}
+                  >
+                    AI Quote
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
