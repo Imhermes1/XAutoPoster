@@ -12,6 +12,7 @@ type AutomationConfig = {
   daily_limit: number;
   llm_model: string;
   llm_provider: string;
+  brand_voice_instructions?: string;
 };
 type Media = { id: string; file_name: string; file_size: number; uploaded_at: string };
 
@@ -29,16 +30,12 @@ export default function AdminPage() {
   const [newCount, setNewCount] = useState(1);
   const [bulkCount, setBulkCount] = useState(1);
   const [bulkTopic, setBulkTopic] = useState('');
+  const [compose, setCompose] = useState('');
+  const [posting, setPosting] = useState(false);
   const [selectedModel, setSelectedModel] = useState('google/gemini-2.0-flash-exp:free');
-
-  const llmModels = [
-    'google/gemini-2.0-flash-exp:free',
-    'openai/gpt-4',
-    'openai/gpt-4-turbo',
-    'openai/gpt-3.5-turbo',
-    'anthropic/claude-3-opus',
-    'anthropic/claude-3-sonnet',
-  ];
+  const [customModel, setCustomModel] = useState('');
+  const [brandVoiceInstructions, setBrandVoiceInstructions] = useState('');
+  const [isEditingBrandVoice, setIsEditingBrandVoice] = useState(false);
 
   const timezones = [
     'UTC',
@@ -70,6 +67,7 @@ export default function AdminPage() {
       setConfig(c.config || null);
       setMedia(m.media || []);
       setUsageStats(u);
+      setBrandVoiceInstructions(c.config?.brand_voice_instructions || '');
     } catch (error) {
       console.error('Failed to refresh:', error);
     }
@@ -117,6 +115,39 @@ export default function AdminPage() {
     refresh();
   };
 
+  const aiEnhance = async () => {
+    if (!compose.trim()) return;
+    const res = await fetch('/api/admin/ai/enhance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: compose }),
+    });
+    const data = await res.json();
+    if (res.ok) setCompose(data.text);
+    else alert(data.error || 'AI enhance failed');
+  };
+
+  const postNow = async () => {
+    if (!compose.trim() || compose.length > 280) return;
+    setPosting(true);
+    try {
+      const res = await fetch('/api/admin/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: compose }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Post failed');
+      setCompose('');
+      refresh();
+      alert('Posted!');
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setPosting(false);
+    }
+  };
+
   const updateConfig = async (updates: Partial<AutomationConfig>) => {
     const updated = { ...config, ...updates } as AutomationConfig;
     await fetch('/api/admin/config', {
@@ -138,6 +169,11 @@ export default function AdminPage() {
   const updateModel = async (model: string) => {
     setSelectedModel(model);
     await updateConfig({ llm_model: model });
+  };
+
+  const saveBrandVoiceInstructions = async () => {
+    await updateConfig({ brand_voice_instructions: brandVoiceInstructions });
+    setIsEditingBrandVoice(false);
   };
 
   const generateBulkPosts = async () => {
@@ -241,6 +277,30 @@ export default function AdminPage() {
 
       {/* Status Cards */}
       <div style={gridStyle}>
+        {/* Compose */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Compose</h2>
+          <textarea
+            placeholder="What's happening?"
+            value={compose}
+            onChange={e => setCompose(e.target.value)}
+            style={{
+              ...inputStyle,
+              minHeight: 120,
+              fontSize: 16,
+              borderRadius: 8,
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: compose.length > 280 ? '#dc2626' : '#666' }}>{compose.length}/280</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={aiEnhance} disabled={!compose.trim()} style={buttonStyle}>AI Improve</button>
+              <button onClick={postNow} disabled={!compose.trim() || compose.length > 280 || posting} style={{ ...buttonStyle, backgroundColor: '#16a34a' }}>
+                {posting ? 'Posting…' : 'Post Now'}
+              </button>
+            </div>
+          </div>
+        </div>
         <div style={{ ...sectionStyle, backgroundColor: '#eff6ff' }}>
           <div style={{ fontSize: 12, color: '#666' }}>Automation Status</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: config?.enabled ? '#16a34a' : '#dc2626', marginTop: 8 }}>
@@ -327,11 +387,72 @@ export default function AdminPage() {
         {/* LLM Model */}
         <div style={sectionStyle}>
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>LLM Model</h2>
-          <select value={selectedModel} onChange={e => updateModel(e.target.value)} style={inputStyle}>
-            {llmModels.map(model => (
-              <option key={model} value={model}>{model.split('/')[1] || model}</option>
-            ))}
-          </select>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, fontWeight: 500, color: '#666', display: 'block', marginBottom: 6 }}>Enter Model Name</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                placeholder="e.g. openai/gpt-4, anthropic/claude-3-opus"
+                value={customModel || selectedModel}
+                onChange={e => setCustomModel(e.target.value)}
+                style={inputStyle}
+              />
+              <button
+                onClick={() => {
+                  if (customModel.trim()) {
+                    updateModel(customModel);
+                    setCustomModel('');
+                  }
+                }}
+                style={{ ...buttonStyle, padding: '8px 12px', whiteSpace: 'nowrap' }}
+              >
+                Set
+              </button>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: '#666', padding: '8px', backgroundColor: '#f3f4f6', borderRadius: 4, marginTop: 8 }}>
+            <div style={{ fontWeight: 500, marginBottom: 6 }}>Current Model:</div>
+            <div style={{ fontWeight: 600, color: '#2563eb' }}>{config?.llm_model || 'google/gemini-2.0-flash-exp:free'}</div>
+            <div style={{ fontSize: 11, marginTop: 6, color: '#999' }}>
+              Examples: openai/gpt-4, openai/gpt-3.5-turbo, anthropic/claude-3-opus, google/gemini-2.0-flash-exp:free
+            </div>
+          </div>
+        </div>
+
+        {/* Brand Voice & Tone Instructions */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Brand Voice & Tone</h2>
+          {!isEditingBrandVoice ? (
+            <div>
+              <div style={{ fontSize: 12, color: '#666', padding: '12px', backgroundColor: '#f3f4f6', borderRadius: 4, minHeight: 80, marginBottom: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {brandVoiceInstructions || 'No instructions set. Click "Edit" to add custom brand voice guidelines.'}
+              </div>
+              <button onClick={() => setIsEditingBrandVoice(true)} style={buttonStyle}>
+                Edit Instructions
+              </button>
+            </div>
+          ) : (
+            <div>
+              <textarea
+                value={brandVoiceInstructions}
+                onChange={e => setBrandVoiceInstructions(e.target.value)}
+                placeholder="Enter brand voice and tone guidelines for the LLM. Example: Write in a professional but friendly tone. Be witty and use emojis sparingly..."
+                style={{
+                  ...inputStyle,
+                  minHeight: 120,
+                  fontFamily: 'monospace',
+                  marginBottom: 12,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={saveBrandVoiceInstructions} style={buttonStyle}>
+                  Save
+                </button>
+                <button onClick={() => setIsEditingBrandVoice(false)} style={{ ...buttonStyle, backgroundColor: '#6b7280' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS automation_config (
   daily_limit INTEGER DEFAULT 2,
   llm_model TEXT DEFAULT 'google/gemini-2.0-flash-exp:free',
   llm_provider TEXT DEFAULT 'openrouter',
+  brand_voice_instructions TEXT DEFAULT 'You are a helpful AI assistant creating engaging social media posts.',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -72,3 +73,7 @@ ALTER TABLE posts_history
 ALTER TABLE manual_topics
   ADD COLUMN IF NOT EXISTS media_id UUID REFERENCES media_library(id),
   ADD COLUMN IF NOT EXISTS link_url TEXT;
+
+-- Add brand_voice_instructions column to automation_config if it doesn't exist
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS brand_voice_instructions TEXT DEFAULT 'You are a helpful AI assistant creating engaging social media posts.';
