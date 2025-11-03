@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
 
   const state = base64url(crypto.getRandomValues(new Uint8Array(16)));
 
-  const authUrl = new URL('https://x.com/i/oauth2/authorize');
+  // Use twitter.com authorize endpoint for maximum compatibility
+  const authUrl = new URL('https://twitter.com/i/oauth2/authorize');
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('client_id', clientId);
   authUrl.searchParams.set('redirect_uri', redirectUri);

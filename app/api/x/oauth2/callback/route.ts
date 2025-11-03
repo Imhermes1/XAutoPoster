@@ -3,6 +3,12 @@ import { getSupabase } from '@/lib/supabase';
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
+  const err = url.searchParams.get('error');
+  const errDesc = url.searchParams.get('error_description');
+  if (err) {
+    return NextResponse.json({ error: String(err), detail: errDesc || null }, { status: 400 });
+  }
+
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
 
@@ -63,4 +69,3 @@ export async function GET(req: NextRequest) {
   res.cookies.delete('x_oauth2_redirect');
   return res;
 }
-
