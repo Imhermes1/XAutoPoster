@@ -1,19 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+import { getSupabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
+    // Validate env quickly for clearer errors
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ ok: false, error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' }, { status: 500 });
+    }
+
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('automation_config')
       .select('id, llm_api_key, openrouter_api_key, x_api_key, x_api_secret, x_access_token, x_access_token_secret, oauth2_access_token, oauth2_expires_at, oauth2_scope')
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error) {
+      // Table missing
+      if ((error as any).code === '42P01') {
+        return NextResponse.json({ ok: true, initialized: false, has_llm_key: false, has_x_oauth1_keys: false, oauth2_connected: false, note: 'automation_config table not found. Run the provided SQL migration in Supabase.' });
+      }
+      // No row
+      if ((error as any).code === 'PGRST116') {
+        return NextResponse.json({ ok: true, initialized: true, has_llm_key: false, has_x_oauth1_keys: false, oauth2_connected: false });
+      }
+      return NextResponse.json({ ok: false, error: (error as any).message || 'Query failed', code: (error as any).code || null }, { status: 500 });
+    }
 
     const hasLlmKey = !!(data?.llm_api_key || data?.openrouter_api_key);
     const hasXOauth1 = !!(data?.x_api_key && data?.x_api_secret && data?.x_access_token && data?.x_access_token_secret);
@@ -35,12 +46,15 @@ export async function GET() {
     });
   } catch (e) {
     console.error('secrets GET failed', e);
-    return NextResponse.json({ ok: false, error: 'Failed to read secrets status' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(e) || 'Failed to read secrets status' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ ok: false, error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' }, { status: 500 });
+    }
     const body = await request.json();
     const updates: Record<string, any> = { updated_at: new Date().toISOString() };
 
@@ -68,6 +82,7 @@ export async function POST(request: NextRequest) {
       updates.oauth2_scope = null;
     }
 
+    const supabase = getSupabase();
     const existing = await supabase.from('automation_config').select('id').single();
     if (existing.error && existing.error.code !== 'PGRST116') throw existing.error;
 
@@ -98,4 +113,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Failed to update secrets' }, { status: 500 });
   }
 }
-
