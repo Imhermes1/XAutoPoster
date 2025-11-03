@@ -13,6 +13,7 @@ export interface Candidate {
   image_url?: string | null;
   fetched_at?: string;
   used?: boolean;
+  overall_score?: number | null;
 }
 
 export async function addCandidateIfNew(c: Candidate): Promise<boolean> {
@@ -49,7 +50,7 @@ export async function listCandidates(limit = 20, type?: CandidateType): Promise<
   const supabase = getSupabase();
   let q = supabase
     .from('candidates')
-    .select('id, type, source, external_id, url, title, text, image_url, fetched_at, used')
+    .select('id, type, source, external_id, url, title, text, image_url, fetched_at, used, overall_score')
     .eq('used', false)
     .order('fetched_at', { ascending: false })
     .limit(limit);
