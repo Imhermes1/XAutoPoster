@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@upstash/redis": "^1.31.6",
+    "@supabase/supabase-js": "^2.45.4",
     "axios": "^1.7.7",
     "next": "^14.2.5",
     "openai": "^4.57.0",
@@ -26,4 +26,3 @@
     "typescript": "^5.4.5"
   }
 }
-

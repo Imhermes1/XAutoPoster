@@ -1,16 +1,16 @@
-import { Redis } from '@upstash/redis';
+import { createClient } from '@supabase/supabase-js';
 
-let redis: Redis | null = null;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function getRedis(): Redis {
-  if (!redis) {
-    const url = process.env.KV_URL;
-    const token = process.env.KV_TOKEN;
-    if (!url || !token) throw new Error('KV_URL and KV_TOKEN must be set');
-    redis = new Redis({ url, token });
-  }
-  return redis;
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  // Throw at runtime when used; avoid build-time failure
+  console.warn('Supabase env vars missing: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
 }
+
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+  : (null as any);
 
 export interface PostRecord {
   text: string;
@@ -26,53 +26,65 @@ export interface ManualTopic {
 }
 
 export async function savePostHistory(post: PostRecord): Promise<void> {
-  const r = getRedis();
-  const timestamp = Date.now();
-  const key = `post:${timestamp}`;
-  await r.set(key, JSON.stringify(post), { ex: 30 * 24 * 60 * 60 });
-  await r.lpush('posts:history', key);
+  if (!supabase) throw new Error('Supabase not configured');
+  const { error } = await supabase.from('posts_history').insert({
+    text: post.text,
+    posted_at: new Date(post.postedAt).toISOString(),
+    topic_id: post.topicId ?? null,
+  });
+  if (error) throw error;
 }
 
 export async function getPostCount(days: number = 1): Promise<number> {
-  const r = getRedis();
-  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const posts = (await r.lrange('posts:history', 0, -1)) as string[];
-  let count = 0;
-  for (const postKey of posts) {
-    const post = await r.get<string>(postKey);
-    if (post) {
-      const parsed = JSON.parse(post) as PostRecord;
-      if (parsed.postedAt > cutoff) count++;
-    }
-  }
-  return count;
+  if (!supabase) throw new Error('Supabase not configured');
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from('posts_history')
+    .select('*', { count: 'exact', head: true })
+    .gt('posted_at', since);
+  if (error) throw error;
+  return count || 0;
 }
 
 export async function addManualTopic(topic: string): Promise<ManualTopic> {
-  const r = getRedis();
+  if (!supabase) throw new Error('Supabase not configured');
   const manualTopic: ManualTopic = {
     id: `topic:${Date.now()}`,
     topic,
     addedAt: Date.now(),
     used: false,
   };
-  await r.lpush('topics:manual', JSON.stringify(manualTopic));
+  const { error } = await supabase.from('manual_topics').insert({
+    id: manualTopic.id,
+    topic: manualTopic.topic,
+    added_at: new Date(manualTopic.addedAt).toISOString(),
+    used: manualTopic.used,
+  });
+  if (error) throw error;
   return manualTopic;
 }
 
 export async function getUnusedManualTopics(): Promise<ManualTopic[]> {
-  const r = getRedis();
-  const topics = (await r.lrange('topics:manual', 0, -1)) as string[];
-  const usedIds = new Set<string>();
-  const usedKeys = await r.keys('topic:used:*');
-  usedKeys.forEach((k) => usedIds.add(k.replace('topic:used:', '')));
-  return topics
-    .map((t) => JSON.parse(t) as ManualTopic)
-    .filter((t) => !t.used && !usedIds.has(t.id));
+  if (!supabase) throw new Error('Supabase not configured');
+  const { data, error } = await supabase
+    .from('manual_topics')
+    .select('id, topic, added_at, used')
+    .eq('used', false)
+    .order('added_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    topic: row.topic,
+    addedAt: new Date(row.added_at).getTime(),
+    used: row.used,
+  }));
 }
 
 export async function markTopicAsUsed(id: string): Promise<void> {
-  const r = getRedis();
-  await r.set(`topic:used:${id}`, '1', { ex: 30 * 24 * 60 * 60 });
+  if (!supabase) throw new Error('Supabase not configured');
+  const { error } = await supabase
+    .from('manual_topics')
+    .update({ used: true })
+    .eq('id', id);
+  if (error) throw error;
 }
-
