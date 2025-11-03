@@ -15,10 +15,7 @@ type AutomationConfig = {
 };
 type Media = { id: string; file_name: string; file_size: number; uploaded_at: string };
 
-type Tab = 'dashboard' | 'automation' | 'content' | 'media' | 'settings' | 'analytics';
-
 export default function AdminPage() {
-  const [tab, setTab] = useState<Tab>('dashboard');
   const [sources, setSources] = useState<Source[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -82,7 +79,6 @@ export default function AdminPage() {
     refresh();
   }, []);
 
-  // ===== Sources & Topics Management =====
   const addSource = async () => {
     if (!newUrl) return;
     await fetch('/api/admin/sources', {
@@ -121,7 +117,6 @@ export default function AdminPage() {
     refresh();
   };
 
-  // ===== Automation Config =====
   const updateConfig = async (updates: Partial<AutomationConfig>) => {
     const updated = { ...config, ...updates } as AutomationConfig;
     await fetch('/api/admin/config', {
@@ -145,7 +140,6 @@ export default function AdminPage() {
     await updateConfig({ llm_model: model });
   };
 
-  // ===== Bulk Generation =====
   const generateBulkPosts = async () => {
     if (!bulkTopic || bulkCount < 1) return;
     try {
@@ -170,7 +164,6 @@ export default function AdminPage() {
     }
   };
 
-  // ===== Media Management =====
   const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -195,44 +188,41 @@ export default function AdminPage() {
     refresh();
   };
 
-  // Styles
-  const tabButtonStyle = (isActive: boolean) => ({
-    padding: '10px 20px',
-    border: 'none',
-    borderBottom: isActive ? '3px solid #2563eb' : 'none',
-    background: 'none',
-    cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: isActive ? 600 : 400,
-    color: isActive ? '#2563eb' : '#666',
-  });
-
-  const containerStyle = {
-    maxWidth: 1200,
+  const containerStyle: React.CSSProperties = {
+    maxWidth: '100%',
     margin: '0 auto',
     padding: '20px',
     fontFamily: 'system-ui, -apple-system, sans-serif',
+    backgroundColor: '#ffffff',
   };
 
-  const sectionStyle = {
-    marginTop: 24,
+  const gridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '20px',
+    marginBottom: '20px',
+  };
+
+  const sectionStyle: React.CSSProperties = {
     padding: '16px',
     border: '1px solid #e5e7eb',
-    borderRadius: 8,
+    borderRadius: '8px',
     backgroundColor: '#f9fafb',
   };
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     padding: '8px 12px',
     border: '1px solid #d1d5db',
-    borderRadius: 6,
+    borderRadius: '6px',
     fontSize: 14,
+    width: '100%',
+    boxSizing: 'border-box',
   };
 
-  const buttonStyle = {
+  const buttonStyle: React.CSSProperties = {
     padding: '8px 16px',
     border: 'none',
-    borderRadius: 6,
+    borderRadius: '6px',
     backgroundColor: '#2563eb',
     color: 'white',
     cursor: 'pointer',
@@ -240,339 +230,218 @@ export default function AdminPage() {
     fontWeight: 500,
   };
 
+  const dangerButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    backgroundColor: '#dc2626',
+  };
+
   return (
     <div style={containerStyle}>
-      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 24 }}>Admin Dashboard</h1>
+      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 24 }}>X Autoposter Admin</h1>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', marginBottom: 24 }}>
-        {(['dashboard', 'automation', 'content', 'media', 'settings', 'analytics'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={tabButtonStyle(tab === t) as React.CSSProperties}
-          >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
+      {/* Status Cards */}
+      <div style={gridStyle}>
+        <div style={{ ...sectionStyle, backgroundColor: '#eff6ff' }}>
+          <div style={{ fontSize: 12, color: '#666' }}>Automation Status</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: config?.enabled ? '#16a34a' : '#dc2626', marginTop: 8 }}>
+            {config?.enabled ? 'ENABLED' : 'DISABLED'}
+          </div>
+        </div>
+        <div style={{ ...sectionStyle, backgroundColor: '#fef3c7' }}>
+          <div style={{ fontSize: 12, color: '#666' }}>LLM Model</div>
+          <div style={{ fontSize: 13, fontWeight: 500, marginTop: 8 }}>{config?.llm_model || 'Not set'}</div>
+        </div>
+        <div style={{ ...sectionStyle, backgroundColor: '#dbeafe' }}>
+          <div style={{ fontSize: 12, color: '#666' }}>Daily Limit</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 8 }}>{config?.daily_limit ?? 2}</div>
+        </div>
+        <div style={{ ...sectionStyle, backgroundColor: '#f3e8ff' }}>
+          <div style={{ fontSize: 12, color: '#666' }}>Posts Today</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 8 }}>{usageStats?.posts_written || 0}</div>
+        </div>
       </div>
 
-      {/* Dashboard Tab */}
-      {tab === 'dashboard' && (
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>Quick Status</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-            <div style={{ ...sectionStyle, backgroundColor: '#eff6ff' }}>
-              <div style={{ fontSize: 12, color: '#666' }}>Automation Status</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: config?.enabled ? '#16a34a' : '#dc2626' }}>
-                {config?.enabled ? 'ENABLED' : 'DISABLED'}
-              </div>
-            </div>
-            <div style={{ ...sectionStyle, backgroundColor: '#fef3c7' }}>
-              <div style={{ fontSize: 12, color: '#666' }}>LLM Model</div>
-              <div style={{ fontSize: 14, fontWeight: 500, marginTop: 8 }}>{config?.llm_model || 'Not configured'}</div>
-            </div>
-            <div style={{ ...sectionStyle, backgroundColor: '#dbeafe' }}>
-              <div style={{ fontSize: 12, color: '#666' }}>Daily Limit</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{config?.daily_limit ?? 2}</div>
-            </div>
-            <div style={{ ...sectionStyle, backgroundColor: '#f3e8ff' }}>
-              <div style={{ fontSize: 12, color: '#666' }}>Posting Times</div>
-              <div style={{ fontSize: 12, fontWeight: 500, marginTop: 8 }}>{config?.posting_times?.join(', ') || 'Not set'}</div>
-            </div>
-          </div>
-
-          <h2 style={{ fontSize: 20, fontWeight: 600, marginTop: 24, marginBottom: 16 }}>Recent Posts</h2>
-          <div style={sectionStyle}>
-            {history.length === 0 ? (
-              <div style={{ color: '#999' }}>No posts yet</div>
-            ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {history.map(h => (
-                  <li key={h.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e5e7eb' }}>
-                    <div style={{ fontSize: 12, color: '#666' }}>{new Date(h.posted_at).toLocaleString()}</div>
-                    <div style={{ marginTop: 4, fontSize: 14 }}>{h.text}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+      <div style={gridStyle}>
+        {/* Automation Control */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Automation Control</h2>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={config?.enabled ?? false}
+              onChange={toggleAutomation}
+              style={{ width: 18, height: 18, cursor: 'pointer' }}
+            />
+            <span style={{ fontWeight: 500 }}>{config?.enabled ? 'Enabled' : 'Disabled'}</span>
+          </label>
         </div>
-      )}
 
-      {/* Automation Tab */}
-      {tab === 'automation' && (
-        <div>
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Automation Control</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        {/* Posting Times */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Posting Times</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {['09:00', '13:00', '18:00'].map(time => (
+              <label key={time} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
                 <input
                   type="checkbox"
-                  checked={config?.enabled ?? false}
-                  onChange={toggleAutomation}
-                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                  checked={config?.posting_times?.includes(time) ?? false}
+                  onChange={e => {
+                    const times = config?.posting_times ?? [];
+                    const updated = e.target.checked
+                      ? [...times, time].sort()
+                      : times.filter(t => t !== time);
+                    updatePostingTimes(updated);
+                  }}
+                  style={{ width: 16, height: 16 }}
                 />
-                <span style={{ fontWeight: 500 }}>{config?.enabled ? 'Automation Enabled' : 'Automation Disabled'}</span>
+                <span>{time}</span>
               </label>
-            </div>
+            ))}
           </div>
+          <div style={{ fontSize: 12 }}>Selected: {config?.posting_times?.join(', ') || 'None'}</div>
+        </div>
 
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Posting Schedule</h2>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Posting Times (UTC)</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {['09:00', '13:00', '18:00'].map(time => (
-                  <label key={time} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={config?.posting_times?.includes(time) ?? false}
-                      onChange={e => {
-                        const times = config?.posting_times ?? [];
-                        const updated = e.target.checked
-                          ? [...times, time].sort()
-                          : times.filter(t => t !== time);
-                        updatePostingTimes(updated);
-                      }}
-                      style={{ width: 16, height: 16 }}
-                    />
-                    <span>{time}</span>
-                  </label>
-                ))}
+        {/* Timezone */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Timezone</h2>
+          <select value={config?.timezone || 'UTC'} onChange={e => updateConfig({ timezone: e.target.value })} style={inputStyle}>
+            {timezones.map(tz => (
+              <option key={tz} value={tz}>{tz}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Daily Limit */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Daily Limit</h2>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={config?.daily_limit ?? 2}
+            onChange={e => updateConfig({ daily_limit: parseInt(e.target.value || '2', 10) })}
+            style={inputStyle}
+          />
+        </div>
+
+        {/* LLM Model */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>LLM Model</h2>
+          <select value={selectedModel} onChange={e => updateModel(e.target.value)} style={inputStyle}>
+            {llmModels.map(model => (
+              <option key={model} value={model}>{model.split('/')[1] || model}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div style={gridStyle}>
+        {/* RSS Sources */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>RSS Sources</h2>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexDirection: 'column' }}>
+            <input placeholder="Feed URL" value={newUrl} onChange={e => setNewUrl(e.target.value)} style={inputStyle} />
+            <input placeholder="Category (optional)" value={newCat} onChange={e => setNewCat(e.target.value)} style={inputStyle} />
+            <button onClick={addSource} style={buttonStyle}>Add Source</button>
+          </div>
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {sources.map(s => (
+              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
+                <span style={{ flex: 1, wordBreak: 'break-word' }}>{s.url}{s.category ? ` (${s.category})` : ''}</span>
+                <button onClick={() => delSource(s.id)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
               </div>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Timezone</label>
-              <select
-                value={config?.timezone || 'UTC'}
-                onChange={e => updateConfig({ timezone: e.target.value })}
-                style={{ ...inputStyle, width: '100%' } as React.CSSProperties}
-              >
-                {timezones.map(tz => (
-                  <option key={tz} value={tz}>{tz}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Daily Post Limit</label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={config?.daily_limit ?? 2}
-                onChange={e => updateConfig({ daily_limit: parseInt(e.target.value || '2', 10) })}
-                style={{ ...inputStyle, width: '100px' } as React.CSSProperties}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Randomize Posting Time (minutes)</label>
-              <input
-                type="number"
-                min={0}
-                max={60}
-                value={config?.randomize_minutes ?? 15}
-                onChange={e => updateConfig({ randomize_minutes: parseInt(e.target.value || '15', 10) })}
-                style={{ ...inputStyle, width: '100px' } as React.CSSProperties}
-              />
-            </div>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* Content Tab */}
-      {tab === 'content' && (
-        <div>
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>RSS Sources</h2>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                placeholder="Feed URL"
-                value={newUrl}
-                onChange={e => setNewUrl(e.target.value)}
-                style={{ ...inputStyle, flex: 1 } as React.CSSProperties}
-              />
-              <input
-                placeholder="Category (optional)"
-                value={newCat}
-                onChange={e => setNewCat(e.target.value)}
-                style={{ ...inputStyle, width: 180 } as React.CSSProperties}
-              />
-              <button onClick={addSource} style={buttonStyle}>Add</button>
-            </div>
+        {/* Manual Topics */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Manual Topics</h2>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexDirection: 'column' }}>
+            <input placeholder="Topic text" value={newTopic} onChange={e => setNewTopic(e.target.value)} style={inputStyle} />
+            <input type="number" min={1} value={newCount} onChange={e => setNewCount(parseInt(e.target.value || '1', 10))} placeholder="Count" style={inputStyle} />
+            <button onClick={addTopic} style={buttonStyle}>Add Topic</button>
+          </div>
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {topics.map(t => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
+                <span style={{ flex: 1 }}>{t.topic}</span>
+                <input type="number" min={0} defaultValue={t.remaining ?? 1} onBlur={e => setRemaining(t.id, parseInt(e.target.value || '0', 10))} style={{ ...inputStyle, width: 50 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bulk Generation */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Bulk Generate</h2>
+          <div style={{ display: 'flex', gap: 6, flexDirection: 'column' }}>
+            <input placeholder="Topic or context" value={bulkTopic} onChange={e => setBulkTopic(e.target.value)} style={inputStyle} />
+            <input type="number" min={1} max={20} value={bulkCount} onChange={e => setBulkCount(parseInt(e.target.value || '1', 10))} placeholder="Count (1-20)" style={inputStyle} />
+            <button onClick={generateBulkPosts} style={buttonStyle}>Generate Posts</button>
+            <div style={{ fontSize: 11, color: '#666' }}>Generate up to 20 posts at once</div>
+          </div>
+        </div>
+
+        {/* Media Upload */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Upload Media</h2>
+          <input type="file" accept="image/*" onChange={handleMediaUpload} style={{ fontSize: 12, marginBottom: 12 }} />
+          <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+            {media.map(m => (
+              <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 6, marginBottom: 4, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11 }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>{m.file_name.substring(0, 20)}</div>
+                  <div style={{ color: '#666', fontSize: 10 }}>{(m.file_size / 1024).toFixed(1)} KB</div>
+                </div>
+                <button onClick={() => deleteMedia(m.id)} style={{ ...dangerButtonStyle, padding: '3px 6px', fontSize: 11 }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Posts */}
+      <div style={sectionStyle}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Recent Posts (Last 20)</h2>
+        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+          {history.length === 0 ? (
+            <div style={{ color: '#999', fontSize: 14 }}>No posts yet</div>
+          ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {sources.map(s => (
-                <li key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb' }}>
-                  <span style={{ fontSize: 14 }}>{s.url}{s.category ? ` — ${s.category}` : ''}</span>
-                  <button onClick={() => delSource(s.id)} style={{ ...buttonStyle, backgroundColor: '#dc2626' }}>Delete</button>
+              {history.map(h => (
+                <li key={h.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ fontSize: 11, color: '#666' }}>{new Date(h.posted_at).toLocaleString()}</div>
+                  <div style={{ marginTop: 4, fontSize: 13 }}>{h.text}</div>
                 </li>
               ))}
             </ul>
-          </div>
+          )}
+        </div>
+      </div>
 
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Manual Topics</h2>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                placeholder="Topic text"
-                value={newTopic}
-                onChange={e => setNewTopic(e.target.value)}
-                style={{ ...inputStyle, flex: 1 } as React.CSSProperties}
-              />
-              <input
-                type="number"
-                min={1}
-                value={newCount}
-                onChange={e => setNewCount(parseInt(e.target.value || '1', 10))}
-                style={{ ...inputStyle, width: 100 } as React.CSSProperties}
-              />
-              <button onClick={addTopic} style={buttonStyle}>Add</button>
-            </div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {topics.map(t => (
-                <li key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb' }}>
-                  <span style={{ flex: 1, fontSize: 14 }}>{t.topic}</span>
-                  <span style={{ fontSize: 13, color: '#666' }}>Remaining: {t.remaining ?? 1}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    defaultValue={t.remaining ?? 1}
-                    onBlur={e => setRemaining(t.id, parseInt(e.target.value || '0', 10))}
-                    style={{ ...inputStyle, width: 70 } as React.CSSProperties}
-                  />
-                </li>
-              ))}
-            </ul>
+      {/* API Usage Stats */}
+      <div style={sectionStyle}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>API Usage (Today)</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
+          <div style={{ backgroundColor: '#e0e7ff', padding: 10, borderRadius: 6, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: '#666' }}>Posts Read</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>{usageStats?.posts_read || 0}</div>
           </div>
-
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Bulk Generate Posts</h2>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                placeholder="Topic or context"
-                value={bulkTopic}
-                onChange={e => setBulkTopic(e.target.value)}
-                style={{ ...inputStyle, flex: 1 } as React.CSSProperties}
-              />
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={bulkCount}
-                onChange={e => setBulkCount(parseInt(e.target.value || '1', 10))}
-                style={{ ...inputStyle, width: 80 } as React.CSSProperties}
-                placeholder="Count"
-              />
-              <button onClick={generateBulkPosts} style={buttonStyle}>Generate</button>
-            </div>
-            <div style={{ fontSize: 12, color: '#666' }}>Generate multiple posts at once. They will be queued based on your schedule.</div>
+          <div style={{ backgroundColor: '#dcfce7', padding: 10, borderRadius: 6, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: '#666' }}>Posts Written</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>{usageStats?.posts_written || 0}</div>
+          </div>
+          <div style={{ backgroundColor: '#fee2e2', padding: 10, borderRadius: 6, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: '#666' }}>API Calls</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>{usageStats?.api_calls || 0}</div>
+          </div>
+          <div style={{ backgroundColor: '#fef3c7', padding: 10, borderRadius: 6, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: '#666' }}>Est. Cost</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>${(usageStats?.estimated_cost || 0).toFixed(2)}</div>
           </div>
         </div>
-      )}
-
-      {/* Media Tab */}
-      {tab === 'media' && (
-        <div>
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Media Library</h2>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Upload Image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleMediaUpload}
-                style={{ fontSize: 14 }}
-              />
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Uploaded Files</h3>
-              {media.length === 0 ? (
-                <div style={{ color: '#999' }}>No media uploaded yet</div>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {media.map(m => (
-                    <li key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb' }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500 }}>{m.file_name}</div>
-                        <div style={{ fontSize: 12, color: '#666' }}>{(m.file_size / 1024).toFixed(2)} KB</div>
-                      </div>
-                      <button onClick={() => deleteMedia(m.id)} style={{ ...buttonStyle, backgroundColor: '#dc2626' }}>Delete</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Tab */}
-      {tab === 'settings' && (
-        <div>
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>LLM Model Selection</h2>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Select Model</label>
-            <select
-              value={selectedModel}
-              onChange={e => updateModel(e.target.value)}
-              style={{ ...inputStyle, width: '100%' } as React.CSSProperties}
-            >
-              {llmModels.map(model => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
-            <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>Current: {config?.llm_model || 'Not set'}</div>
-          </div>
-
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>API Configuration</h2>
-            <div style={{ fontSize: 13, color: '#666', lineHeight: 1.6 }}>
-              <p><strong>Supabase URL:</strong> {process.env.NEXT_PUBLIC_SUPABASE_URL ? '✓ Configured' : '✗ Missing'}</p>
-              <p><strong>X API Keys:</strong> Set in environment</p>
-              <p><strong>OpenRouter API:</strong> Set in environment</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Tab */}
-      {tab === 'analytics' && (
-        <div>
-          <div style={sectionStyle}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>API Usage & Progress</h2>
-            {usageStats ? (
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-                  <div style={{ backgroundColor: '#e0e7ff', padding: 12, borderRadius: 6 }}>
-                    <div style={{ fontSize: 12, color: '#666' }}>Posts Read (Today)</div>
-                    <div style={{ fontSize: 24, fontWeight: 700 }}>{usageStats.posts_read || 0}</div>
-                  </div>
-                  <div style={{ backgroundColor: '#dcfce7', padding: 12, borderRadius: 6 }}>
-                    <div style={{ fontSize: 12, color: '#666' }}>Posts Written (Today)</div>
-                    <div style={{ fontSize: 24, fontWeight: 700 }}>{usageStats.posts_written || 0}</div>
-                  </div>
-                  <div style={{ backgroundColor: '#fee2e2', padding: 12, borderRadius: 6 }}>
-                    <div style={{ fontSize: 12, color: '#666' }}>API Calls</div>
-                    <div style={{ fontSize: 24, fontWeight: 700 }}>{usageStats.api_calls || 0}</div>
-                  </div>
-                  <div style={{ backgroundColor: '#fef3c7', padding: 12, borderRadius: 6 }}>
-                    <div style={{ fontSize: 12, color: '#666' }}>Estimated Cost</div>
-                    <div style={{ fontSize: 24, fontWeight: 700 }}>${(usageStats.estimated_cost || 0).toFixed(2)}</div>
-                  </div>
-                </div>
-                <div style={{ marginTop: 16, fontSize: 12, color: '#666' }}>
-                  <p>Last updated: {usageStats.last_updated || 'N/A'}</p>
-                </div>
-              </div>
-            ) : (
-              <div style={{ color: '#999' }}>Usage data not available</div>
-            )}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
