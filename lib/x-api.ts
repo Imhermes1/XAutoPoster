@@ -1,4 +1,6 @@
 import { createHmac } from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from './supabase';
 
 interface XApiConfig {
   apiKey: string;
@@ -7,13 +9,49 @@ interface XApiConfig {
   accessTokenSecret: string;
 }
 
-function getXApiConfig(): XApiConfig {
-  return {
-    apiKey: process.env.X_API_KEY!,
-    apiSecret: process.env.X_API_SECRET!,
-    accessToken: process.env.X_ACCESS_TOKEN!,
-    accessTokenSecret: process.env.X_ACCESS_TOKEN_SECRET!,
-  };
+async function getXApiConfig(): Promise<XApiConfig> {
+  // Prefer env vars if all are present
+  if (
+    process.env.X_API_KEY &&
+    process.env.X_API_SECRET &&
+    process.env.X_ACCESS_TOKEN &&
+    process.env.X_ACCESS_TOKEN_SECRET
+  ) {
+    return {
+      apiKey: process.env.X_API_KEY,
+      apiSecret: process.env.X_API_SECRET,
+      accessToken: process.env.X_ACCESS_TOKEN,
+      accessTokenSecret: process.env.X_ACCESS_TOKEN_SECRET,
+    } as XApiConfig;
+  }
+
+  // Fallback: read from Supabase automation_config if available
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+    const { data } = await supabase
+      .from('automation_config')
+      .select('*')
+      .single();
+    if (data) {
+      const apiKey = (data as any).x_api_key || (data as any).x_consumer_key;
+      const apiSecret = (data as any).x_api_secret || (data as any).x_consumer_secret;
+      const accessToken = (data as any).x_access_token;
+      const accessTokenSecret = (data as any).x_access_token_secret;
+      if (apiKey && apiSecret && accessToken && accessTokenSecret) {
+        return {
+          apiKey,
+          apiSecret,
+          accessToken,
+          accessTokenSecret,
+        };
+      }
+    }
+  }
+
+  throw new Error('Missing X API credentials. Set env vars (X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET) or store them in Supabase automation_config (x_api_key, x_api_secret, x_access_token, x_access_token_secret).');
 }
 
 function generateOAuthHeader(
@@ -59,16 +97,90 @@ function generateOAuthHeader(
 
 type PostResponse = { success: boolean; id?: string; error?: string };
 
+async function getOAuth2Bearer(): Promise<string | null> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('automation_config')
+      .select('id, oauth2_access_token, oauth2_refresh_token, oauth2_expires_at, oauth2_scope')
+      .single();
+    if (error || !data) return null;
+
+    const now = new Date();
+    const expiresAt = data.oauth2_expires_at ? new Date(data.oauth2_expires_at) : null;
+    if (data.oauth2_access_token && expiresAt && expiresAt.getTime() - now.getTime() > 60_000) {
+      return data.oauth2_access_token;
+    }
+
+    // Try refresh
+    if (data.oauth2_refresh_token) {
+      const refreshed = await refreshOAuth2Token(data.oauth2_refresh_token);
+      if (refreshed?.access_token) return refreshed.access_token;
+    }
+  } catch {}
+  return null;
+}
+
+async function refreshOAuth2Token(refresh_token: string): Promise<{ access_token: string; refresh_token?: string; expires_in?: number } | null> {
+  try {
+    const clientId = process.env.X_OAUTH_CLIENT_ID;
+    const clientSecret = process.env.X_OAUTH_CLIENT_SECRET;
+    const tokenUrl = 'https://api.x.com/2/oauth2/token';
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token,
+      client_id: clientId || '',
+    });
+    if (clientSecret) params.set('client_secret', clientSecret);
+
+    const resp = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as any;
+    const access_token = json.access_token as string;
+    const expires_in = (json.expires_in as number) || 7200;
+    const new_refresh = (json.refresh_token as string) || refresh_token;
+
+    const supabase = getSupabase();
+    await supabase.from('automation_config').update({
+      oauth2_access_token: access_token,
+      oauth2_refresh_token: new_refresh,
+      oauth2_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
+      oauth2_scope: json.scope || null,
+      updated_at: new Date().toISOString(),
+    }).neq('id', '00000000-0000-0000-0000-000000000000');
+
+    return { access_token, refresh_token: new_refresh, expires_in };
+  } catch {
+    return null;
+  }
+}
+
 export async function oauthFetch(url: string, method: string, body?: any, headers: Record<string, string> = {}): Promise<Response> {
-  const config = getXApiConfig();
+  // For v1.1 media upload, force OAuth1.0a (OAuth2 may not be supported)
+  const forceOAuth1 = url.includes('upload.twitter.com/1.1/');
+  // Prefer OAuth2 bearer if available; fallback to OAuth1.0a
+  const bearer = forceOAuth1 ? null : await getOAuth2Bearer();
+  const baseHeaders: Record<string, string> = {
+    'User-Agent': 'X-AutoPoster/1.0',
+    ...headers,
+  };
+  if (bearer) {
+    return fetch(url, {
+      method,
+      headers: { ...baseHeaders, Authorization: `Bearer ${bearer}` },
+      body,
+    });
+  }
+
+  const config = await getXApiConfig();
   const authHeader = generateOAuthHeader(method, url, {}, config);
   return fetch(url, {
     method,
-    headers: {
-      Authorization: authHeader,
-      'User-Agent': 'X-AutoPoster/1.0',
-      ...headers,
-    },
+    headers: { ...baseHeaders, Authorization: authHeader },
     body,
   });
 }
@@ -198,7 +310,7 @@ export async function uploadMedia(
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 ): Promise<{ success: boolean; media_id?: string; expires_after_secs?: number; error?: string }> {
   try {
-    const config = getXApiConfig();
+    const config = await getXApiConfig();
     const url = 'https://upload.twitter.com/1.1/media/upload.json';
 
     // Prepare form data
@@ -239,7 +351,7 @@ export async function postToXWithMedia(
   mediaIds: string[]
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const config = getXApiConfig();
+    const config = await getXApiConfig();
     const url = 'https://api.x.com/2/tweets';
 
     const authHeader = generateOAuthHeader('POST', url, {}, config);

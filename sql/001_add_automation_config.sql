@@ -77,3 +77,25 @@ ALTER TABLE manual_topics
 -- Add brand_voice_instructions column to automation_config if it doesn't exist
 ALTER TABLE automation_config
   ADD COLUMN IF NOT EXISTS brand_voice_instructions TEXT DEFAULT 'You are a helpful AI assistant creating engaging social media posts.';
+
+-- Add LLM API key storage columns if they don't exist (OpenRouter only used by app)
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS llm_api_key TEXT;
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS openrouter_api_key TEXT;
+-- X API credentials (optional if stored in env)
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS x_api_key TEXT;
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS x_api_secret TEXT;
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS x_access_token TEXT;
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS x_access_token_secret TEXT;
+
+-- OAuth 2.0 token storage (user context)
+ALTER TABLE automation_config
+  ADD COLUMN IF NOT EXISTS oauth2_access_token TEXT,
+  ADD COLUMN IF NOT EXISTS oauth2_refresh_token TEXT,
+  ADD COLUMN IF NOT EXISTS oauth2_expires_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS oauth2_scope TEXT;
