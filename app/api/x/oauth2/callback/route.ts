@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing X_OAUTH_CLIENT_ID' }, { status: 500 });
   }
 
-  const tokenUrl = 'https://api.x.com/2/oauth2/token';
+  // Use twitter.com API hostname for token exchange
+  const tokenUrl = 'https://api.twitter.com/2/oauth2/token';
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -35,11 +36,15 @@ export async function GET(req: NextRequest) {
     code_verifier: verifier,
     client_id: clientId,
   });
-  if (clientSecret) params.set('client_secret', clientSecret);
+  const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  if (clientSecret) {
+    const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    headers['Authorization'] = `Basic ${basic}`;
+  }
 
   const tokenRes = await fetch(tokenUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers,
     body: params.toString(),
   });
 

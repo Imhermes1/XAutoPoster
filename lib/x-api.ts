@@ -114,28 +114,32 @@ async function getOAuth2Bearer(): Promise<string | null> {
 
     // Try refresh
     if (data.oauth2_refresh_token) {
-      const refreshed = await refreshOAuth2Token(data.oauth2_refresh_token);
+      const refreshed = await refreshOAuth2Token(data.id as string, data.oauth2_refresh_token);
       if (refreshed?.access_token) return refreshed.access_token;
     }
   } catch {}
   return null;
 }
 
-async function refreshOAuth2Token(refresh_token: string): Promise<{ access_token: string; refresh_token?: string; expires_in?: number } | null> {
+async function refreshOAuth2Token(rowId: string, refresh_token: string): Promise<{ access_token: string; refresh_token?: string; expires_in?: number } | null> {
   try {
     const clientId = process.env.X_OAUTH_CLIENT_ID;
     const clientSecret = process.env.X_OAUTH_CLIENT_SECRET;
-    const tokenUrl = 'https://api.x.com/2/oauth2/token';
+    const tokenUrl = 'https://api.twitter.com/2/oauth2/token';
     const params = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token,
       client_id: clientId || '',
     });
-    if (clientSecret) params.set('client_secret', clientSecret);
+    const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
+    if (clientSecret) {
+      const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      headers['Authorization'] = `Basic ${basic}`;
+    }
 
     const resp = await fetch(tokenUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers,
       body: params.toString(),
     });
     if (!resp.ok) return null;
@@ -151,7 +155,7 @@ async function refreshOAuth2Token(refresh_token: string): Promise<{ access_token
       oauth2_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
       oauth2_scope: json.scope || null,
       updated_at: new Date().toISOString(),
-    }).neq('id', '00000000-0000-0000-0000-000000000000');
+    }).eq('id', rowId);
 
     return { access_token, refresh_token: new_refresh, expires_in };
   } catch {
