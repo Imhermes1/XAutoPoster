@@ -146,23 +146,18 @@ export async function generateQuoteTweetComment(originalTweetText: string): Prom
     const model = await getSelectedModel();
     const brandVoice = await getBrandVoiceInstructions();
 
-    const prompt = `You are writing a quote tweet comment in response to the following tweet.
+    // Simplified prompt - let the AI think freely
+    const prompt = `You are a tech expert and builder. Read this tweet and write an insightful quote tweet comment.
 
-Brand Voice Context:
-${brandVoice}
-
-Original Tweet:
+TWEET:
 ${originalTweetText}
 
-Rules:
-- Write a SHORT, insightful comment that adds value to the original tweet
-- Keep it under 200 characters (this leaves room for the quoted tweet)
-- Use your brand voice from the context above
-- Be authentic, thoughtful, and engaging
-- NO explanations, NO meta-commentary, NO quotes around your response
-- Return ONLY your actual comment text that will be posted
+YOUR VOICE/STYLE:
+${brandVoice}
 
-Write your comment now:`;
+Write a SHORT comment (under 200 characters) that adds genuine value - share an insight, highlight what matters, or connect to a broader trend. Be specific to this tweet's content. Sound natural and conversational.
+
+Write ONLY your comment text:`;
 
     const message = await client.chat.completions.create({
       model,
@@ -170,28 +165,47 @@ Write your comment now:`;
         { role: 'user', content: prompt },
       ],
       max_tokens: 150,
-      temperature: 0.8,
+      temperature: 0.9, // Higher temperature for more creative insights
     });
 
     let text = message.choices?.[0]?.message?.content || '';
 
-    // Clean up any quotes or formatting that LLMs sometimes add
+    // Aggressive cleanup of LLM artifacts
     text = text.replace(/^["']|["']$/g, '').trim();
+    text = text.replace(/^(comment:|response:|tweet:|here's my comment:|my comment:)/gi, '').trim();
 
-    // More aggressive cleanup for common AI artifacts
-    if (text.toLowerCase().startsWith('comment:') || text.toLowerCase().startsWith('response:')) {
-      text = text.substring(text.indexOf(':') + 1).trim();
+    // Remove any meta-commentary patterns
+    const metaPatterns = [
+      /^(here('s| is)? (a|my|the))?\s*(comment|response|tweet|thought)s?:?\s*/gi,
+      /^let me /gi,
+      /^i (would|will|could) /gi,
+      /^this (is|could be) /gi,
+    ];
+
+    for (const pattern of metaPatterns) {
+      text = text.replace(pattern, '').trim();
     }
 
     if (text.length > 200) text = text.slice(0, 197) + '...';
 
-    // If the generated text looks like instructions, throw error
-    if (text.toLowerCase().includes('add a') || text.toLowerCase().includes('write a') || text.toLowerCase().includes('create a')) {
-      throw new Error('AI generated invalid comment (contains instructions)');
+    // Validation checks
+    const invalidPatterns = [
+      /add a (concise|brief|short|thoughtful)/gi,
+      /write (a|an) (comment|response|tweet)/gi,
+      /create (a|an) (comment|response|tweet)/gi,
+      /provide (a|an) (comment|response|insight)/gi,
+      /generate (a|an) (comment|response|tweet)/gi,
+    ];
+
+    for (const pattern of invalidPatterns) {
+      if (pattern.test(text)) {
+        console.error('AI generated invalid comment (instructions detected):', text);
+        throw new Error('AI generated invalid comment (contains instructions)');
+      }
     }
 
-    if (!text) {
-      throw new Error('AI generated empty comment');
+    if (!text || text.length < 10) {
+      throw new Error('AI generated empty or too short comment');
     }
 
     return text;
