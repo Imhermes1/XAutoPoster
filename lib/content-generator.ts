@@ -141,25 +141,64 @@ export async function generateMultiplePosts(
 }
 
 export async function improveText(original: string): Promise<string> {
-  const client = await getClient();
-  const prompt = `You are improving a draft X (Twitter) post while preserving its core meaning.
+  try {
+    const client = await getClient();
+    const model = await getSelectedModel();
+    const brandVoice = await getBrandVoiceInstructions();
+
+    const prompt = `You are improving a draft X (Twitter) post while preserving its core meaning.
+
+Brand Voice Context:
+${brandVoice}
 
 Rules:
 - Keep it under 280 characters (aim 200–260).
 - Preserve any URLs, @mentions, and #hashtags exactly if present.
-- Keep the author's voice: professional, concise, friendly; optional 0–3 relevant emojis.
+- Keep the author's voice based on brand voice instructions above.
 - Make it clearer, more engaging, and more scannable.
-- Do NOT add a thread; return a single post text only.`;
+- Do NOT add a thread; return a single post text only.
+- Return ONLY the improved post text, no explanations or quotes.`;
 
-  const message = await client.chat.completions.create({
-    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
-    messages: [
-      { role: 'system', content: prompt },
-      { role: 'user', content: `Draft:\n${original}` },
-    ],
-    max_tokens: 300,
-  });
-  let text = message.choices?.[0]?.message?.content || '';
-  if (text.length > 280) text = text.slice(0, 277) + '...';
-  return text;
+    const message = await client.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: `Draft:\n${original}` },
+      ],
+      max_tokens: 300,
+      temperature: 0.7,
+    });
+
+    let text = message.choices?.[0]?.message?.content || '';
+
+    // Clean up any quotes or formatting that LLMs sometimes add
+    text = text.replace(/^["']|["']$/g, '').trim();
+
+    if (text.length > 280) text = text.slice(0, 277) + '...';
+
+    // If the improved text is empty or unchanged, return original
+    if (!text || text === original) {
+      console.warn('AI improve returned empty or unchanged text, returning original');
+      return original;
+    }
+
+    return text;
+  } catch (error: any) {
+    console.error('Failed to improve text with AI:', error);
+
+    // Provide more specific error messages
+    if (error?.message?.includes('rate limit') || error?.status === 429) {
+      throw new Error('Rate limit exceeded. Please wait a moment before trying again.');
+    }
+    if (error?.message?.includes('API key') || error?.status === 401) {
+      throw new Error('Invalid API key. Please check your OpenRouter API key configuration.');
+    }
+    if (error?.status === 400) {
+      throw new Error('Invalid request to AI model. The text may be too long or contain invalid characters.');
+    }
+
+    // Return original text as fallback instead of throwing
+    console.warn('Returning original text due to error');
+    return original;
+  }
 }

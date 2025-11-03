@@ -24,6 +24,7 @@ export default function Page() {
   // Compose + quick actions
   const [compose, setCompose] = useState('');
   const [posting, setPosting] = useState(false);
+  const [aiImproving, setAiImproving] = useState(false);
   const [tweetToQuote, setTweetToQuote] = useState('');
   const [imageUrl, setImageUrl] = useState('');
 
@@ -91,10 +92,15 @@ export default function Page() {
 
   // Compose actions
   const aiEnhance = async () => {
-    if (!compose.trim()) return;
-    const res = await fetch('/api/admin/ai/enhance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: compose }) });
-    const data = await res.json();
-    if (res.ok) setCompose(data.text); else alert(data.error || 'AI enhance failed');
+    if (!compose.trim() || aiImproving) return;
+    setAiImproving(true);
+    try {
+      const res = await fetch('/api/admin/ai/enhance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: compose }) });
+      const data = await res.json();
+      if (res.ok) setCompose(data.text); else alert(data.error || 'AI enhance failed');
+    } finally {
+      setAiImproving(false);
+    }
   };
 
   const postNow = async () => {
@@ -144,7 +150,11 @@ export default function Page() {
     await fetch('/api/admin/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: newUrl, category: newCat }) });
     setNewUrl(''); setNewCat(''); refresh();
   };
-  const delSource = async (id: string) => { await fetch(`/api/admin/sources/${id}`, { method: 'DELETE' }); refresh(); };
+  const delSource = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this RSS source?')) return;
+    await fetch(`/api/admin/sources/${id}`, { method: 'DELETE' });
+    refresh();
+  };
 
   const addTopic = async () => {
     if (!newTopic.trim()) return;
@@ -154,9 +164,17 @@ export default function Page() {
   const setRemaining = async (id: string, remaining: number) => { await fetch(`/api/admin/topics/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ remaining }) }); refresh(); };
 
   const addAccount = async () => { if (!newHandle.trim()) return; await fetch('/api/admin/x/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle: newHandle }) }); setNewHandle(''); refresh(); };
-  const removeAccount = async (id: string) => { await fetch(`/api/admin/x/accounts/${id}`, { method: 'DELETE' }); refresh(); };
+  const removeAccount = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this X account?')) return;
+    await fetch(`/api/admin/x/accounts/${id}`, { method: 'DELETE' });
+    refresh();
+  };
   const addKeyword = async () => { if (!newQuery.trim()) return; await fetch('/api/admin/x/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: newQuery }) }); setNewQuery(''); refresh(); };
-  const removeKeyword = async (id: string) => { await fetch(`/api/admin/x/keywords/${id}`, { method: 'DELETE' }); refresh(); };
+  const removeKeyword = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this keyword?')) return;
+    await fetch(`/api/admin/x/keywords/${id}`, { method: 'DELETE' });
+    refresh();
+  };
   const ingestNow = async () => { await fetch('/api/admin/candidates/ingest', { method: 'POST' }); refresh(); };
   const aiQuoteCandidate = async (id: string) => { const res = await fetch(`/api/admin/candidates/${id}/quote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }); const data = await res.json(); if (!res.ok) alert(data.error || 'Quote failed'); else { alert('Quoted!'); refresh(); } };
   const aiPostRssCandidate = async (c: any) => {
@@ -198,18 +216,69 @@ export default function Page() {
       refresh();
     } catch (error) { console.error('Upload failed:', error); alert('Failed to upload media'); }
   };
-  const deleteMedia = async (id: string) => { await fetch(`/api/admin/media/${id}`, { method: 'DELETE' }); refresh(); };
+  const deleteMedia = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this media file?')) return;
+    await fetch(`/api/admin/media/${id}`, { method: 'DELETE' });
+    refresh();
+  };
+
+  // Design System
+  const colors = {
+    primary: '#2563eb',
+    success: '#16a34a',
+    danger: '#dc2626',
+    warning: '#f59e0b',
+    gray: {
+      50: '#f9fafb',
+      100: '#f3f4f6',
+      200: '#e5e7eb',
+      300: '#d1d5db',
+      600: '#666',
+      900: '#111827'
+    }
+  };
+  const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 };
+  const radius = { sm: 6, md: 8, lg: 12 };
 
   const container: React.CSSProperties = { display: 'flex', height: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' };
-  const mainArea: React.CSSProperties = { flex: 1, overflowY: 'auto', padding: 24, backgroundColor: '#ffffff' };
-  const adminSidebar: React.CSSProperties = { width: 400, overflowY: 'auto', padding: 20, backgroundColor: '#f9fafb', borderLeft: '1px solid #e5e7eb', position: 'relative' };
-  const section: React.CSSProperties = { padding: 16, border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', marginBottom: 16 };
-  const input: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14, width: '100%', boxSizing: 'border-box' };
-  const button: React.CSSProperties = { padding: '8px 12px', borderRadius: 6, border: 'none', background: '#2563eb', color: 'white', cursor: 'pointer', fontSize: 14 };
-  const danger: React.CSSProperties = { ...button, background: '#dc2626' };
+  const mainArea: React.CSSProperties = { flex: 1, overflowY: 'auto', padding: spacing.xxl, backgroundColor: '#ffffff' };
+  const adminSidebar: React.CSSProperties = { width: 400, overflowY: 'auto', padding: spacing.xl, backgroundColor: colors.gray[50], borderLeft: `1px solid ${colors.gray[200]}`, position: 'relative' };
+  const section: React.CSSProperties = { padding: spacing.lg, border: `1px solid ${colors.gray[200]}`, borderRadius: radius.md, background: colors.gray[50], marginBottom: spacing.lg };
+  const input: React.CSSProperties = { padding: `${spacing.sm}px ${spacing.md}px`, border: `1px solid ${colors.gray[300]}`, borderRadius: radius.sm, fontSize: 14, width: '100%', boxSizing: 'border-box', transition: 'border-color 0.2s, box-shadow 0.2s' };
+  const button: React.CSSProperties = { padding: `${spacing.sm}px ${spacing.md}px`, borderRadius: radius.sm, border: 'none', background: colors.primary, color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 500, transition: 'all 0.2s' };
+  const danger: React.CSSProperties = { ...button, background: colors.danger };
 
   return (
-    <div style={container}>
+    <>
+      <style>{`
+        button {
+          position: relative;
+          overflow: hidden;
+        }
+        button:not(:disabled):hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          filter: brightness(1.1);
+        }
+        button:not(:disabled):active {
+          transform: translateY(0);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        input:focus, textarea:focus {
+          outline: none;
+          border-color: ${colors.primary};
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        input[type="checkbox"] {
+          cursor: pointer;
+          accent-color: ${colors.primary};
+        }
+      `}</style>
+      <div style={container}>
       {/* Main Content Area */}
       <main style={mainArea}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -224,12 +293,30 @@ export default function Page() {
           <div style={section}>
             <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Compose</h2>
             <textarea value={compose} onChange={e => setCompose(e.target.value)} placeholder="What's happening?" style={{ ...input, minHeight: 120 }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-              <div style={{ fontSize: 12, color: compose.length > 280 ? '#dc2626' : '#666' }}>{compose.length}/280</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={aiEnhance} disabled={!compose.trim()} style={button}>AI Improve</button>
-                <button onClick={postNow} disabled={!compose.trim() || compose.length > 280 || posting} style={{ ...button, background: '#16a34a' }}>{posting ? 'Posting…' : 'Post Now'}</button>
+            {/* Character Counter with Progress Bar */}
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: compose.length > 280 ? colors.danger : compose.length > 240 ? colors.warning : colors.gray[600] }}>
+                  {compose.length}/280
+                </div>
+                <div style={{ fontSize: 11, color: colors.gray[600] }}>
+                  {280 - compose.length} characters remaining
+                </div>
               </div>
+              <div style={{ width: '100%', height: 4, backgroundColor: colors.gray[200], borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  width: `${Math.min((compose.length / 280) * 100, 100)}%`,
+                  height: '100%',
+                  backgroundColor: compose.length > 280 ? colors.danger : compose.length > 240 ? colors.warning : colors.success,
+                  transition: 'all 0.3s ease'
+                }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button onClick={aiEnhance} disabled={!compose.trim() || aiImproving} style={{ ...button, opacity: aiImproving ? 0.7 : 1 }}>
+                {aiImproving ? '⟳ Improving...' : 'AI Improve'}
+              </button>
+              <button onClick={postNow} disabled={!compose.trim() || compose.length > 280 || posting} style={{ ...button, background: colors.success }}>{posting ? 'Posting…' : 'Post Now'}</button>
             </div>
           </div>
           <div style={section}>
@@ -356,24 +443,34 @@ export default function Page() {
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>Admin Settings</h2>
 
           {/* X Account Status */}
-          <div style={{ ...section, backgroundColor: authStatus?.authenticated ? '#dcfce7' : '#fee2e2', marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>X Account Status</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ ...section, backgroundColor: authStatus?.authenticated ? '#dcfce7' : '#fee2e2', marginBottom: 16, border: `2px solid ${authStatus?.authenticated ? colors.success : colors.danger}` }}>
+            <div style={{ fontSize: 12, color: colors.gray[600], marginBottom: 8, fontWeight: 600 }}>X Account Status</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
               <div style={{
-                width: 12,
-                height: 12,
+                width: 32,
+                height: 32,
                 borderRadius: '50%',
-                backgroundColor: authStatus?.authenticated ? '#16a34a' : '#dc2626'
-              }} />
-              <div style={{ fontSize: 16, fontWeight: 700, color: authStatus?.authenticated ? '#16a34a' : '#dc2626' }}>
-                {authStatus?.authenticated ? 'Connected' : 'Not Connected'}
+                backgroundColor: authStatus?.authenticated ? colors.success : colors.danger,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: 18,
+                fontWeight: 700
+              }}>
+                {authStatus?.authenticated ? '✓' : '✕'}
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: authStatus?.authenticated ? colors.success : colors.danger }}>
+                  {authStatus?.authenticated ? 'Connected' : 'Not Connected'}
+                </div>
+                {authStatus?.authenticated && authStatus?.username && (
+                  <div style={{ fontSize: 13, color: colors.gray[600], marginTop: 2 }}>
+                    {authStatus.username}
+                  </div>
+                )}
               </div>
             </div>
-            {authStatus?.authenticated && authStatus?.username && (
-              <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                {authStatus.username}
-              </div>
-            )}
             {!authStatus?.authenticated && (
               <div style={{ fontSize: 11, color: '#666', marginTop: 8, padding: 8, backgroundColor: '#fff', borderRadius: 4 }}>
                 Configure X API credentials in environment variables to connect your account.
@@ -387,13 +484,29 @@ export default function Page() {
           </div>
 
           {/* Automation Status */}
-          <div style={{ ...section, backgroundColor: config?.enabled ? '#dcfce7' : '#fee2e2' }}>
-            <div style={{ fontSize: 12, color: '#666' }}>Automation Status</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: config?.enabled ? '#16a34a' : '#dc2626', marginTop: 4 }}>
-              {config?.enabled ? 'ENABLED' : 'DISABLED'}
+          <div style={{ ...section, backgroundColor: config?.enabled ? '#dcfce7' : '#fee2e2', border: `2px solid ${config?.enabled ? colors.success : colors.danger}` }}>
+            <div style={{ fontSize: 12, color: colors.gray[600], marginBottom: 8, fontWeight: 600 }}>Automation Status</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                backgroundColor: config?.enabled ? colors.success : colors.danger,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: 18,
+                fontWeight: 700
+              }}>
+                {config?.enabled ? '▶' : '⏸'}
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: config?.enabled ? colors.success : colors.danger }}>
+                {config?.enabled ? 'ENABLED' : 'DISABLED'}
+              </div>
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 12 }}>
-              <input type="checkbox" checked={config?.enabled ?? false} onChange={toggleAutomation} style={{ width: 18, height: 18 }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: `${spacing.sm}px ${spacing.md}px`, backgroundColor: 'white', borderRadius: radius.sm }}>
+              <input type="checkbox" checked={config?.enabled ?? false} onChange={toggleAutomation} style={{ width: 18, height: 18, cursor: 'pointer' }} />
               <span style={{ fontSize: 14, fontWeight: 500 }}>Enable Automation</span>
             </label>
           </div>
@@ -496,6 +609,7 @@ export default function Page() {
           </div>
         </aside>
       )}
-    </div>
+      </div>
+    </>
   );
 }
