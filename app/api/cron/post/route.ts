@@ -146,9 +146,9 @@ async function handlePost(req: Request) {
             {
               id: candidate.id,
               type: candidate.type,
-              title: candidate.title,
-              text: candidate.text,
-              url: candidate.url,
+              title: candidate.title ?? undefined,
+              text: candidate.text ?? undefined,
+              url: candidate.url ?? undefined,
               source: candidate.source,
             },
             analysisContext,
@@ -187,10 +187,19 @@ async function handlePost(req: Request) {
           source_id: bestCandidate.id,
         });
 
-        // Post it
-        const result = bestCandidate.image_url
-          ? await postToXAdvanced({ text: post, image_url: bestCandidate.image_url })
-          : await postToX(post);
+        // Post it (with image if available)
+        let result: { success: boolean; id?: string; error?: string };
+        if (bestCandidate.image_url) {
+          const mediaUpload = await uploadMediaFromUrl(bestCandidate.image_url);
+          if (mediaUpload.success && mediaUpload.media_id) {
+            result = await postToXAdvanced({ text: post, media_ids: [mediaUpload.media_id] });
+          } else {
+            // Fall back to posting without image if upload fails
+            result = await postToX(post);
+          }
+        } else {
+          result = await postToX(post);
+        }
 
         if (!result.success) {
           errorsCount++;
@@ -198,7 +207,9 @@ async function handlePost(req: Request) {
         }
 
         postsCreated++;
-        await markCandidateUsed(bestCandidate.id);
+        if (bestCandidate.id) {
+          await markCandidateUsed(bestCandidate.id);
+        }
         await savePostHistory({ text: post, postedAt: Date.now(), topicId: undefined });
         if (generationId) await markGenerationUsed(generationId, result.id!);
 
