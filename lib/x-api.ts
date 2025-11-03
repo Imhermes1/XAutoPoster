@@ -87,7 +87,7 @@ export async function postToX(text: string): Promise<{ success: boolean; id?: st
 }
 
 export async function uploadMedia(
-  buffer: Buffer,
+  buffer: ArrayBuffer | Uint8Array,
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 ): Promise<{ success: boolean; media_id?: string; error?: string }> {
   try {
