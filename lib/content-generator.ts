@@ -1,10 +1,13 @@
 import { OpenAI } from 'openai';
 import { BRAND_VOICE_PROMPT } from './constants';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-});
+function getClient() {
+  // Lazily instantiate to avoid requiring env at build time
+  return new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: 'https://openrouter.ai/api/v1',
+  });
+}
 
 export async function generatePost(
   topic: string,
@@ -12,7 +15,8 @@ export async function generatePost(
 ): Promise<string> {
   const prompt = `${BRAND_VOICE_PROMPT}\n\nTopic/News: ${topic}\n${context ? `Additional context: ${context}` : ''}\n\nGenerate a single engaging X post (max 280 characters, but aim for 200-260 for impact).\nReturn ONLY the post text, no explanations.\nMake it shareable, informative, and in your voice.`;
 
-  const message = await openai.chat.completions.create({
+  const client = getClient();
+  const message = await client.chat.completions.create({
     model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
     messages: [
       {
@@ -47,4 +51,3 @@ export async function generateMultiplePosts(
 
   return posts;
 }
-
