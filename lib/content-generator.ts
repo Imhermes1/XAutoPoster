@@ -140,6 +140,77 @@ export async function generateMultiplePosts(
   return posts;
 }
 
+export async function generateQuoteTweetComment(originalTweetText: string): Promise<string> {
+  try {
+    const client = await getClient();
+    const model = await getSelectedModel();
+    const brandVoice = await getBrandVoiceInstructions();
+
+    const prompt = `You are writing a quote tweet comment in response to the following tweet.
+
+Brand Voice Context:
+${brandVoice}
+
+Original Tweet:
+${originalTweetText}
+
+Rules:
+- Write a SHORT, insightful comment that adds value to the original tweet
+- Keep it under 200 characters (this leaves room for the quoted tweet)
+- Use your brand voice from the context above
+- Be authentic, thoughtful, and engaging
+- NO explanations, NO meta-commentary, NO quotes around your response
+- Return ONLY your actual comment text that will be posted
+
+Write your comment now:`;
+
+    const message = await client.chat.completions.create({
+      model,
+      messages: [
+        { role: 'user', content: prompt },
+      ],
+      max_tokens: 150,
+      temperature: 0.8,
+    });
+
+    let text = message.choices?.[0]?.message?.content || '';
+
+    // Clean up any quotes or formatting that LLMs sometimes add
+    text = text.replace(/^["']|["']$/g, '').trim();
+
+    // More aggressive cleanup for common AI artifacts
+    if (text.toLowerCase().startsWith('comment:') || text.toLowerCase().startsWith('response:')) {
+      text = text.substring(text.indexOf(':') + 1).trim();
+    }
+
+    if (text.length > 200) text = text.slice(0, 197) + '...';
+
+    // If the generated text looks like instructions, throw error
+    if (text.toLowerCase().includes('add a') || text.toLowerCase().includes('write a') || text.toLowerCase().includes('create a')) {
+      throw new Error('AI generated invalid comment (contains instructions)');
+    }
+
+    if (!text) {
+      throw new Error('AI generated empty comment');
+    }
+
+    return text;
+  } catch (error: any) {
+    console.error('Failed to generate quote tweet comment:', error);
+
+    // Provide more specific error messages
+    if (error?.message?.includes('rate limit') || error?.status === 429) {
+      throw new Error('Rate limit exceeded. Please wait a moment before trying again.');
+    }
+    if (error?.message?.includes('API key') || error?.status === 401) {
+      throw new Error('Invalid API key. Please check your OpenRouter API key configuration.');
+    }
+
+    // Re-throw the error instead of returning a fallback for quote tweets
+    throw new Error('Failed to generate comment: ' + (error?.message || String(error)));
+  }
+}
+
 export async function improveText(original: string): Promise<string> {
   try {
     const client = await getClient();
