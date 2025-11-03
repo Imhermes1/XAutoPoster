@@ -20,9 +20,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
     }
 
-    // Check file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
+    // Validate image format (X API requires JPEG, PNG, GIF, or WebP)
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validImageTypes.includes(file.type)) {
+      return NextResponse.json({ error: 'Unsupported image format. Supported: JPEG, PNG, GIF, WebP' }, { status: 400 });
+    }
+
+    // Check file size (max 5MB for X API compliance - images must be ≤5MB)
+    // Note: GIFs are 15MB limit but require chunked upload endpoint
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_IMAGE_SIZE) {
+      return NextResponse.json({ error: 'File too large (max 5MB for X API compatibility)' }, { status: 400 });
     }
 
     const buffer = await file.arrayBuffer();

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { DAILY_POST_LIMIT } from '@/lib/constants';
 import { fetchRecentNews } from '@/lib/rss-fetcher';
 import { generatePost } from '@/lib/content-generator';
-import { postToX } from '@/lib/x-api';
+import { postToX, postToXAdvanced, uploadMediaFromUrl } from '@/lib/x-api';
 import { getPostCount, getUnusedManualTopics, markTopicAsUsed, savePostHistory } from '@/lib/kv-storage';
 import { createClient } from '@supabase/supabase-js';
 
@@ -76,6 +76,20 @@ async function handlePost(req: Request) {
       if (news.length > 0) {
         const item = news[Math.floor(Math.random() * news.length)];
         topicText = `${item.title} — ${item.source} ${item.link}`.trim();
+        // If RSS provides image, try to upload and attach
+        if (item.imageUrl) {
+          const media = await uploadMediaFromUrl(item.imageUrl);
+          if (media.success && media.media_id) {
+            const post = await generatePost(topicText!);
+            const result = await postToXAdvanced({ text: post, media_ids: [media.media_id] });
+            if (!result.success) {
+              return NextResponse.json({ success: false, error: result.error }, { status: 500 });
+            }
+            await savePostHistory({ text: post, postedAt: Date.now(), topicId: manualId });
+            if (manualId) await markTopicAsUsed(manualId);
+            return NextResponse.json({ success: true, id: result.id, text: post, media: true });
+          }
+        }
       } else {
         topicText = 'Latest trends in AI, app dev, iOS, Android, and coding';
       }

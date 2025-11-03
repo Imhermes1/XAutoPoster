@@ -10,6 +10,7 @@ export interface FeedItem {
   pubDate?: string;
   contentSnippet?: string;
   source: string;
+  imageUrl?: string;
 }
 
 async function fetchDbFeeds(): Promise<string[]> {
@@ -50,6 +51,7 @@ export async function fetchRecentNews(): Promise<FeedItem[]> {
           pubDate: item.pubDate,
           contentSnippet: (item as any).contentSnippet || (item as any).content || '',
           source: feed.title || 'Unknown Source',
+          imageUrl: extractImage(item as any),
         }));
       allFeeds.push(...recentItems);
     } catch (error) {
@@ -58,6 +60,21 @@ export async function fetchRecentNews(): Promise<FeedItem[]> {
   }
 
   return allFeeds;
+}
+
+function extractImage(item: any): string | undefined {
+  // enclosure
+  if (item?.enclosure?.url && typeof item.enclosure.url === 'string') {
+    const type = item.enclosure.type || '';
+    if (!type || type.startsWith('image/')) return item.enclosure.url;
+  }
+  // content HTML
+  const html = (item?.content || item?.['content:encoded'] || '') as string;
+  if (typeof html === 'string') {
+    const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (match) return match[1];
+  }
+  return undefined;
 }
 
 export async function searchNewsForTopic(topic: string): Promise<FeedItem[]> {

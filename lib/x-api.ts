@@ -57,22 +57,26 @@ function generateOAuthHeader(
   return `OAuth ${headerParams}`;
 }
 
-export async function postToX(text: string): Promise<{ success: boolean; id?: string; error?: string }> {
+type PostResponse = { success: boolean; id?: string; error?: string };
+
+async function oauthFetch(url: string, method: string, body?: any, headers: Record<string, string> = {}): Promise<Response> {
+  const config = getXApiConfig();
+  const authHeader = generateOAuthHeader(method, url, {}, config);
+  return fetch(url, {
+    method,
+    headers: {
+      Authorization: authHeader,
+      'User-Agent': 'X-AutoPoster/1.0',
+      ...headers,
+    },
+    body,
+  });
+}
+
+export async function postToX(text: string): Promise<PostResponse> {
   try {
-    const config = getXApiConfig();
     const url = 'https://api.x.com/2/tweets';
-
-    const authHeader = generateOAuthHeader('POST', url, {}, config);
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: authHeader,
-        'Content-Type': 'application/json',
-        'User-Agent': 'X-AutoPoster/1.0',
-      },
-      body: JSON.stringify({ text }),
-    });
+    const response = await oauthFetch(url, 'POST', JSON.stringify({ text }), { 'Content-Type': 'application/json' });
 
     if (!response.ok) {
       const error = await response.text();
@@ -86,10 +90,52 @@ export async function postToX(text: string): Promise<{ success: boolean; id?: st
   }
 }
 
+export async function postToXAdvanced(params: { text: string; media_ids?: string[]; quote_tweet_id?: string }): Promise<PostResponse> {
+  try {
+    const url = 'https://api.x.com/2/tweets';
+    const payload: any = { text: params.text };
+    if (params.media_ids && params.media_ids.length > 0) payload.media = { media_ids: params.media_ids };
+    if (params.quote_tweet_id) payload.quote_tweet_id = params.quote_tweet_id;
+    const response = await oauthFetch(url, 'POST', JSON.stringify(payload), { 'Content-Type': 'application/json' });
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+    const data = (await response.json()) as { data: { id: string } };
+    return { success: true, id: data.data.id };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function uploadMediaFromUrl(imageUrl: string): Promise<{ success: boolean; media_id?: string; error?: string }> {
+  try {
+    const res = await fetch(imageUrl, { headers: { 'User-Agent': 'X-AutoPoster/1.0' } });
+    if (!res.ok) return { success: false, error: `download failed: ${res.status}` };
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 5 * 1024 * 1024) {
+      return { success: false, error: 'image larger than 5MB not supported in simple upload' };
+    }
+    const b64 = buf.toString('base64');
+    const url = 'https://upload.twitter.com/1.1/media/upload.json';
+    const body = new URLSearchParams({ media_data: b64 });
+    const response = await oauthFetch(url, 'POST', body.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+    const data = (await response.json()) as { media_id_string?: string };
+    if (!data.media_id_string) return { success: false, error: 'no media id in response' };
+    return { success: true, media_id: data.media_id_string };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
 export async function uploadMedia(
   buffer: ArrayBuffer | Uint8Array,
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-): Promise<{ success: boolean; media_id?: string; error?: string }> {
+): Promise<{ success: boolean; media_id?: string; expires_after_secs?: number; error?: string }> {
   try {
     const config = getXApiConfig();
     const url = 'https://upload.twitter.com/1.1/media/upload.json';
@@ -116,8 +162,12 @@ export async function uploadMedia(
       return { success: false, error };
     }
 
-    const data = (await response.json()) as { media_id_string: string };
-    return { success: true, media_id: data.media_id_string };
+    const data = (await response.json()) as { media_id_string: string; expires_after_secs?: number };
+    return {
+      success: true,
+      media_id: data.media_id_string,
+      expires_after_secs: data.expires_after_secs
+    };
   } catch (error) {
     return { success: false, error: String(error) };
   }
@@ -186,4 +236,3 @@ export async function postToXWithLink(
     return { success: false, error: String(error) };
   }
 }
-
