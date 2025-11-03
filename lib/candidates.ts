@@ -15,22 +15,34 @@ export interface Candidate {
   used?: boolean;
 }
 
-export async function addCandidateIfNew(c: Candidate): Promise<void> {
+export async function addCandidateIfNew(c: Candidate): Promise<boolean> {
   const supabase = getSupabase();
-  await supabase.from('candidates').upsert(
-    [{
-      type: c.type,
-      source: c.source,
-      external_id: c.external_id,
-      url: c.url ?? null,
-      title: c.title ?? null,
-      text: c.text ?? null,
-      image_url: c.image_url ?? null,
-      fetched_at: c.fetched_at ?? new Date().toISOString(),
-      used: c.used ?? false,
-    }],
-    { onConflict: 'external_id' }
-  );
+
+  // Check if already exists
+  const { data: existing } = await supabase
+    .from('candidates')
+    .select('id')
+    .eq('external_id', c.external_id)
+    .single();
+
+  if (existing) {
+    return false; // Duplicate
+  }
+
+  // Insert new candidate
+  const { error } = await supabase.from('candidates').insert([{
+    type: c.type,
+    source: c.source,
+    external_id: c.external_id,
+    url: c.url ?? null,
+    title: c.title ?? null,
+    text: c.text ?? null,
+    image_url: c.image_url ?? null,
+    fetched_at: c.fetched_at ?? new Date().toISOString(),
+    used: c.used ?? false,
+  }]);
+
+  return !error; // True if inserted successfully
 }
 
 export async function listCandidates(limit = 20, type?: CandidateType): Promise<Candidate[]> {
