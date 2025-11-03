@@ -59,7 +59,7 @@ function generateOAuthHeader(
 
 type PostResponse = { success: boolean; id?: string; error?: string };
 
-async function oauthFetch(url: string, method: string, body?: any, headers: Record<string, string> = {}): Promise<Response> {
+export async function oauthFetch(url: string, method: string, body?: any, headers: Record<string, string> = {}): Promise<Response> {
   const config = getXApiConfig();
   const authHeader = generateOAuthHeader(method, url, {}, config);
   return fetch(url, {
@@ -109,24 +109,82 @@ export async function postToXAdvanced(params: { text: string; media_ids?: string
 }
 
 export async function uploadMediaFromUrl(imageUrl: string): Promise<{ success: boolean; media_id?: string; error?: string }> {
+  // Auto-choose simple upload for <=5MB, else attempt chunked with optional resize
   try {
     const res = await fetch(imageUrl, { headers: { 'User-Agent': 'X-AutoPoster/1.0' } });
     if (!res.ok) return { success: false, error: `download failed: ${res.status}` };
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > 5 * 1024 * 1024) {
-      return { success: false, error: 'image larger than 5MB not supported in simple upload' };
+    const contentType = res.headers.get('content-type') || 'application/octet-stream';
+    let buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length <= 5 * 1024 * 1024) {
+      const b64 = buf.toString('base64');
+      const url = 'https://upload.twitter.com/1.1/media/upload.json';
+      const body = new URLSearchParams({ media_data: b64 });
+      const response = await oauthFetch(url, 'POST', body.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
+      if (!response.ok) {
+        const error = await response.text();
+        return { success: false, error };
+      }
+      const data = (await response.json()) as { media_id_string?: string };
+      if (!data.media_id_string) return { success: false, error: 'no media id in response' };
+      return { success: true, media_id: data.media_id_string };
     }
-    const b64 = buf.toString('base64');
-    const url = 'https://upload.twitter.com/1.1/media/upload.json';
-    const body = new URLSearchParams({ media_data: b64 });
-    const response = await oauthFetch(url, 'POST', body.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
+
+    // Try to resize/compress if sharp is available
+    try {
+      const sharp = await import('sharp');
+      const img = sharp.default ? sharp.default(buf) : (sharp as any)(buf);
+      const resized = await img.resize({ width: 1600, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+      buf = resized;
+    } catch {}
+
+    return await uploadMediaChunked(buf, contentType);
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+async function uploadMediaChunked(buf: Buffer, contentType: string): Promise<{ success: boolean; media_id?: string; error?: string }> {
+  try {
+    const initUrl = 'https://upload.twitter.com/1.1/media/upload.json';
+    const totalBytes = buf.length.toString();
+    const mediaType = contentType.startsWith('image/') ? contentType : 'image/jpeg';
+    const initBody = new URLSearchParams({ command: 'INIT', media_type: mediaType, total_bytes: totalBytes, media_category: 'tweet_image' });
+    const initRes = await oauthFetch(initUrl, 'POST', initBody.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
+    if (!initRes.ok) return { success: false, error: await initRes.text() };
+    const initData = (await initRes.json()) as { media_id_string: string };
+    const mediaId = initData.media_id_string;
+
+    const chunkSize = 4 * 1024 * 1024; // 4MB
+    let segmentIndex = 0;
+    for (let offset = 0; offset < buf.length; offset += chunkSize) {
+      const chunk = buf.subarray(offset, Math.min(offset + chunkSize, buf.length));
+      const form = new FormData();
+      form.append('command', 'APPEND');
+      form.append('media_id', mediaId);
+      form.append('segment_index', String(segmentIndex++));
+      form.append('media', new Blob([chunk]), 'chunk');
+      const appendRes = await oauthFetch(initUrl, 'POST', form as any, {});
+      if (!appendRes.ok) return { success: false, error: await appendRes.text() };
     }
-    const data = (await response.json()) as { media_id_string?: string };
-    if (!data.media_id_string) return { success: false, error: 'no media id in response' };
-    return { success: true, media_id: data.media_id_string };
+
+    const finBody = new URLSearchParams({ command: 'FINALIZE', media_id: mediaId });
+    const finRes = await oauthFetch(initUrl, 'POST', finBody.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
+    if (!finRes.ok) return { success: false, error: await finRes.text() };
+    const finData = (await finRes.json()) as any;
+    if (finData.processing_info) {
+      let state = finData.processing_info.state as string;
+      let checkAfter = finData.processing_info.check_after_secs || 1;
+      while (state === 'in_progress' || state === 'pending') {
+        await new Promise(r => setTimeout(r, checkAfter * 1000));
+        const statusRes = await oauthFetch(`${initUrl}?command=STATUS&media_id=${mediaId}`, 'GET');
+        if (!statusRes.ok) return { success: false, error: await statusRes.text() };
+        const statusData = (await statusRes.json()) as any;
+        state = statusData.processing_info?.state;
+        checkAfter = statusData.processing_info?.check_after_secs || 1;
+        if (state === 'failed') return { success: false, error: JSON.stringify(statusData) };
+      }
+    }
+    return { success: true, media_id: mediaId };
   } catch (e) {
     return { success: false, error: String(e) };
   }
