@@ -14,6 +14,20 @@ type AutomationConfig = {
   llm_provider: string;
   brand_voice_instructions?: string;
 };
+type SecretsStatus = {
+  ok?: boolean;
+  has_llm_key?: boolean;
+  has_x_oauth1_keys?: boolean;
+  oauth2_connected?: boolean;
+  oauth2_expires_at?: string | null;
+  oauth2_scope?: string | null;
+  env?: {
+    has_client_id?: boolean;
+    has_client_secret?: boolean;
+    has_supabase?: boolean;
+    has_cron_secret?: boolean;
+  };
+};
 type Media = { id: string; file_name: string; file_size: number; uploaded_at: string };
 
 export default function AdminPage() {
@@ -23,6 +37,7 @@ export default function AdminPage() {
   const [config, setConfig] = useState<AutomationConfig | null>(null);
   const [media, setMedia] = useState<Media[]>([]);
   const [usageStats, setUsageStats] = useState<any>(null);
+  const [secrets, setSecrets] = useState<SecretsStatus>({});
 
   const [newUrl, setNewUrl] = useState('');
   const [newCat, setNewCat] = useState('');
@@ -58,7 +73,7 @@ export default function AdminPage() {
 
   const refresh = async () => {
     try {
-      const [s, t, h, c, m, u, a, k, cand] = await Promise.all([
+      const [s, t, h, c, m, u, a, k, cand, sec] = await Promise.all([
         fetch('/api/admin/sources').then(r => r.json()),
         fetch('/api/admin/topics').then(r => r.json()),
         fetch('/api/admin/history?limit=20').then(r => r.json()),
@@ -68,6 +83,7 @@ export default function AdminPage() {
         fetch('/api/admin/x/accounts').then(r => r.json()).catch(() => ({ accounts: [] })),
         fetch('/api/admin/x/keywords').then(r => r.json()).catch(() => ({ keywords: [] })),
         fetch('/api/admin/candidates?limit=20').then(r => r.json()).catch(() => ({ items: [] })),
+        fetch('/api/admin/secrets').then(r => r.json()).catch(() => ({})),
       ]);
       setSources(s.sources || []);
       setTopics(t.topics || []);
@@ -79,6 +95,7 @@ export default function AdminPage() {
       setAccounts(a.accounts || []);
       setKeywords(k.keywords || []);
       setCandidates(cand.items || []);
+      setSecrets(sec || {});
     } catch (error) {
       console.error('Failed to refresh:', error);
     }
@@ -319,9 +336,92 @@ export default function AdminPage() {
     backgroundColor: '#dc2626',
   };
 
+  // Write-only secret updaters
+  const [openrouterKeyInput, setOpenrouterKeyInput] = useState('');
+  const [xKeyInput, setXKeyInput] = useState('');
+  const [xSecretInput, setXSecretInput] = useState('');
+  const [xAccessInput, setXAccessInput] = useState('');
+  const [xAccessSecretInput, setXAccessSecretInput] = useState('');
+
+  const saveOpenRouterKey = async () => {
+    if (!openrouterKeyInput.trim()) return;
+    await fetch('/api/admin/secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: openrouterKeyInput.trim(), llm_api_key: openrouterKeyInput.trim() }) });
+    setOpenrouterKeyInput('');
+    refresh();
+  };
+
+  const saveXOauth1Keys = async () => {
+    await fetch('/api/admin/secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x_api_key: xKeyInput || undefined, x_api_secret: xSecretInput || undefined, x_access_token: xAccessInput || undefined, x_access_token_secret: xAccessSecretInput || undefined }) });
+    setXKeyInput(''); setXSecretInput(''); setXAccessInput(''); setXAccessSecretInput('');
+    refresh();
+  };
+
+  const clearOAuth2 = async () => {
+    await fetch('/api/admin/secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clear_oauth2: true }) });
+    refresh();
+  };
+
+  const connectOAuth2 = () => {
+    window.location.href = '/api/x/oauth2/start';
+  };
+
   return (
     <div style={containerStyle}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 24 }}>X Autoposter Admin</h1>
+
+      {/* Unified Settings */}
+      <div style={{ ...sectionStyle, marginBottom: 20, backgroundColor: '#fff' }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Settings</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+          <div style={{ ...sectionStyle, backgroundColor: '#f8fafc' }}>
+            <div style={{ fontSize: 12, color: '#666' }}>LLM (OpenRouter)</div>
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              <div>Status: {secrets?.has_llm_key ? 'Key set' : 'Not set'}</div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <input value={openrouterKeyInput} onChange={e => setOpenrouterKeyInput(e.target.value)} placeholder="Enter OpenRouter API Key" style={inputStyle} />
+                <button onClick={saveOpenRouterKey} style={{ ...buttonStyle, whiteSpace: 'nowrap' }}>Save</button>
+              </div>
+            </div>
+          </div>
+          <div style={{ ...sectionStyle, backgroundColor: '#f8fafc' }}>
+            <div style={{ fontSize: 12, color: '#666' }}>X OAuth2</div>
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              <div>Status: {secrets?.oauth2_connected ? 'Connected' : 'Not connected'}</div>
+              {secrets?.oauth2_expires_at && (
+                <div>Expires: {new Date(secrets.oauth2_expires_at).toLocaleString()}</div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button onClick={connectOAuth2} style={{ ...buttonStyle }}>Connect</button>
+                <button onClick={clearOAuth2} style={dangerButtonStyle}>Disconnect</button>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>Env: Client ID {secrets?.env?.has_client_id ? '✓' : '✗'}, Client Secret {secrets?.env?.has_client_secret ? '✓' : '✗'}</div>
+            </div>
+          </div>
+          <div style={{ ...sectionStyle, backgroundColor: '#f8fafc' }}>
+            <div style={{ fontSize: 12, color: '#666' }}>X OAuth1 (Media Upload)</div>
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              <div>Status: {secrets?.has_x_oauth1_keys ? 'Keys set' : 'Not set'}</div>
+              <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+                <input value={xKeyInput} onChange={e => setXKeyInput(e.target.value)} placeholder="X API Key" style={inputStyle} />
+                <input value={xSecretInput} onChange={e => setXSecretInput(e.target.value)} placeholder="X API Secret" style={inputStyle} />
+                <input value={xAccessInput} onChange={e => setXAccessInput(e.target.value)} placeholder="X Access Token" style={inputStyle} />
+                <input value={xAccessSecretInput} onChange={e => setXAccessSecretInput(e.target.value)} placeholder="X Access Token Secret" style={inputStyle} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={saveXOauth1Keys} style={buttonStyle}>Save</button>
+                  <button onClick={async()=>{await fetch('/api/admin/secrets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear_x_oauth1:true})});refresh();}} style={dangerButtonStyle}>Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={{ ...sectionStyle, backgroundColor: '#f8fafc' }}>
+            <div style={{ fontSize: 12, color: '#666' }}>System</div>
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              <div>Supabase env: {secrets?.env?.has_supabase ? '✓' : '✗'}</div>
+              <div>CRON_SECRET: {secrets?.env?.has_cron_secret ? '✓' : '✗'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Status Cards */}
       <div style={gridStyle}>
