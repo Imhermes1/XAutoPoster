@@ -162,7 +162,9 @@ async function uploadMediaChunked(buf: Buffer, contentType: string): Promise<{ s
       form.append('command', 'APPEND');
       form.append('media_id', mediaId);
       form.append('segment_index', String(segmentIndex++));
-      form.append('media', new Blob([chunk]), 'chunk');
+      // Convert Buffer slice to a TypedArray view for Blob typing compatibility
+      const view = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+      form.append('media', new Blob([view]), 'chunk');
       const appendRes = await oauthFetch(initUrl, 'POST', form as any, {});
       if (!appendRes.ok) return { success: false, error: await appendRes.text() };
     }
