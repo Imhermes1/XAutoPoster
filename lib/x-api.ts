@@ -96,7 +96,9 @@ export async function uploadMedia(
 
     // Prepare form data
     const formData = new FormData();
-    const blob = new Blob([buffer], { type: mediaType });
+    // Convert to Uint8Array if needed for Blob compatibility
+    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const blob = new Blob([bytes], { type: mediaType });
     formData.append('media_data', blob);
 
     const response = await fetch(url, {
