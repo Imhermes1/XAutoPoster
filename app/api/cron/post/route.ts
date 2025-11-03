@@ -4,8 +4,32 @@ import { fetchRecentNews } from '@/lib/rss-fetcher';
 import { generatePost } from '@/lib/content-generator';
 import { postToX } from '@/lib/x-api';
 import { getPostCount, getUnusedManualTopics, markTopicAsUsed, savePostHistory } from '@/lib/kv-storage';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
+
+async function getAutomationConfig() {
+  try {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return null;
+    }
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { data, error } = await supabase
+      .from('automation_config')
+      .select('*')
+      .single();
+
+    if (error) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(req: Request) {
   return handlePost(req);
@@ -25,8 +49,17 @@ async function handlePost(req: Request) {
         return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
       }
     }
+
+    // Check if automation is enabled
+    const config = await getAutomationConfig();
+    if (config && !config.enabled) {
+      return NextResponse.json({ skipped: true, reason: 'automation disabled' });
+    }
+
+    // Use dynamic limit from config, fallback to env/default
+    const dailyLimit = config?.daily_limit || DAILY_POST_LIMIT;
     const count = await getPostCount(1);
-    if (count >= DAILY_POST_LIMIT) {
+    if (count >= dailyLimit) {
       return NextResponse.json({ skipped: true, reason: 'daily limit reached', count });
     }
 
