@@ -1,16 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  // Throw at runtime when used; avoid build-time failure
-  console.warn('Supabase env vars missing: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
-}
-
-const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
-  : (null as any);
+import { getSupabase } from '@/lib/supabase';
 
 export interface PostRecord {
   text: string;
@@ -23,10 +11,11 @@ export interface ManualTopic {
   topic: string;
   addedAt: number;
   used: boolean;
+  remaining?: number;
 }
 
 export async function savePostHistory(post: PostRecord): Promise<void> {
-  if (!supabase) throw new Error('Supabase not configured');
+  const supabase = getSupabase();
   const { error } = await supabase.from('posts_history').insert({
     text: post.text,
     posted_at: new Date(post.postedAt).toISOString(),
@@ -36,7 +25,7 @@ export async function savePostHistory(post: PostRecord): Promise<void> {
 }
 
 export async function getPostCount(days: number = 1): Promise<number> {
-  if (!supabase) throw new Error('Supabase not configured');
+  const supabase = getSupabase();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { count, error } = await supabase
     .from('posts_history')
@@ -47,29 +36,31 @@ export async function getPostCount(days: number = 1): Promise<number> {
 }
 
 export async function addManualTopic(topic: string): Promise<ManualTopic> {
-  if (!supabase) throw new Error('Supabase not configured');
+  const supabase = getSupabase();
   const manualTopic: ManualTopic = {
     id: `topic:${Date.now()}`,
     topic,
     addedAt: Date.now(),
     used: false,
+    remaining: 1,
   };
   const { error } = await supabase.from('manual_topics').insert({
     id: manualTopic.id,
     topic: manualTopic.topic,
     added_at: new Date(manualTopic.addedAt).toISOString(),
     used: manualTopic.used,
+    remaining: manualTopic.remaining,
   });
   if (error) throw error;
   return manualTopic;
 }
 
 export async function getUnusedManualTopics(): Promise<ManualTopic[]> {
-  if (!supabase) throw new Error('Supabase not configured');
+  const supabase = getSupabase();
   const { data, error } = await supabase
     .from('manual_topics')
-    .select('id, topic, added_at, used')
-    .eq('used', false)
+    .select('id, topic, added_at, used, remaining')
+    .or('used.eq.false,remaining.gt.0')
     .order('added_at', { ascending: false });
   if (error) throw error;
   return (data || []).map((row: any) => ({
@@ -77,14 +68,40 @@ export async function getUnusedManualTopics(): Promise<ManualTopic[]> {
     topic: row.topic,
     addedAt: new Date(row.added_at).getTime(),
     used: row.used,
+    remaining: row.remaining ?? 0,
   }));
 }
 
 export async function markTopicAsUsed(id: string): Promise<void> {
-  if (!supabase) throw new Error('Supabase not configured');
+  const supabase = getSupabase();
+  // Decrement remaining if present; else mark used
+  const { data, error: selErr } = await supabase
+    .from('manual_topics')
+    .select('remaining')
+    .eq('id', id)
+    .single();
+  if (selErr) throw selErr;
+  const remaining = (data?.remaining ?? 0) as number;
+  if (remaining && remaining > 1) {
+    const { error } = await supabase
+      .from('manual_topics')
+      .update({ remaining: remaining - 1 })
+      .eq('id', id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('manual_topics')
+      .update({ used: true, remaining: 0 })
+      .eq('id', id);
+    if (error) throw error;
+  }
+}
+
+export async function setManualTopicRemaining(id: string, remaining: number): Promise<void> {
+  const supabase = getSupabase();
   const { error } = await supabase
     .from('manual_topics')
-    .update({ used: true })
+    .update({ remaining, used: remaining <= 0 })
     .eq('id', id);
   if (error) throw error;
 }
