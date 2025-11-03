@@ -10,10 +10,10 @@ function base64url(input: Uint8Array) {
 
 export async function GET(req: NextRequest) {
   const clientId = process.env.X_OAUTH_CLIENT_ID;
-  const redirect = `${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/x/oauth2/callback`;
   const url = new URL(req.url);
   const origin = `${url.protocol}//${url.host}`;
-  const redirectUri = redirect || `${origin}/api/x/oauth2/callback`;
+  const base = (process.env.NEXT_PUBLIC_BASE_URL || '').trim();
+  const redirectUri = base ? `${base}/api/x/oauth2/callback` : `${origin}/api/x/oauth2/callback`;
 
   if (!clientId) {
     return NextResponse.json({ error: 'Missing X_OAUTH_CLIENT_ID' }, { status: 500 });
@@ -42,4 +42,3 @@ export async function GET(req: NextRequest) {
   res.cookies.set('x_oauth2_redirect', redirectUri, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600 });
   return res;
 }
-
