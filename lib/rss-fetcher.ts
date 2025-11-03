@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import { RSS_FEEDS } from './constants';
+import { getSupabase } from '@/lib/supabase';
 
 const parser = new Parser();
 
@@ -11,16 +12,32 @@ export interface FeedItem {
   source: string;
 }
 
+async function fetchDbFeeds(): Promise<string[]> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('sources')
+      .select('url')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map((r: any) => r.url as string).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchRecentNews(): Promise<FeedItem[]> {
   const allFeeds: FeedItem[] = [];
-
-  const feedUrls = [
-    ...RSS_FEEDS.ai,
-    ...RSS_FEEDS.ios,
-    ...RSS_FEEDS.android,
-    ...RSS_FEEDS.coding,
-    ...RSS_FEEDS.appDev,
-  ];
+  const dbFeeds = await fetchDbFeeds();
+  const feedUrls = dbFeeds.length
+    ? dbFeeds
+    : [
+        ...RSS_FEEDS.ai,
+        ...RSS_FEEDS.ios,
+        ...RSS_FEEDS.android,
+        ...RSS_FEEDS.coding,
+        ...RSS_FEEDS.appDev,
+      ];
 
   for (const feedUrl of feedUrls) {
     try {
@@ -51,4 +68,3 @@ export async function searchNewsForTopic(topic: string): Promise<FeedItem[]> {
       (item.contentSnippet || '').toLowerCase().includes(topic.toLowerCase())
   );
 }
-

@@ -15,7 +15,7 @@ npm install
 
 ```
 cp .env.example .env.local
-# Fill values for X API, OpenRouter, KV
+# Fill values for X API, OpenRouter, Supabase
 ```
 
 3. Run dev
@@ -53,7 +53,16 @@ create table if not exists public.manual_topics (
   id text primary key,
   topic text not null,
   added_at timestamptz not null,
-  used boolean not null default false
+  used boolean not null default false,
+  remaining integer not null default 1
+);
+
+-- RSS sources
+create table if not exists public.sources (
+  id uuid primary key default gen_random_uuid(),
+  url text not null,
+  category text,
+  created_at timestamptz not null default now()
 );
 ```
 
