@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from('automation_config')
-      .select('*')
+      .select('id, enabled, posting_times, timezone, randomize_minutes, daily_limit, llm_model, llm_provider, brand_voice_instructions, updated_at, created_at')
       .single();
 
     if (error && error.code !== 'PGRST116') {
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         .from('automation_config')
         .update(payload)
         .eq('id', config.id)
-        .select()
+        .select('id, enabled, posting_times, timezone, randomize_minutes, daily_limit, llm_model, llm_provider, brand_voice_instructions, updated_at, created_at')
         .single();
 
       if (error) throw error;
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase
         .from('automation_config')
         .insert([payload])
-        .select()
+        .select('id, enabled, posting_times, timezone, randomize_minutes, daily_limit, llm_model, llm_provider, brand_voice_instructions, updated_at, created_at')
         .single();
 
       if (error) throw error;

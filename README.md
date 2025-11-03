@@ -36,9 +36,8 @@ npm run dev
 - Optional security: set `CRON_SECRET` in Vercel and require `Authorization: Bearer <secret>`
 
 LLM keys
-- Preferred: `OPENROUTER_API_KEY` (works with OpenRouter base URL)
-- Fallback: `OPENAI_API_KEY` (also accepted if you prefer)
-- Model env: `OPENROUTER_MODEL` (or `OPENAI_MODEL`) defaults to `google/gemini-2.0-flash-exp:free`
+- Use `OPENROUTER_API_KEY` (OpenRouter base URL is used)
+- Model env: `OPENROUTER_MODEL` defaults to `google/gemini-2.0-flash-exp:free`
 
 ## Database: Supabase setup
 Use Supabase (Postgres) instead of Vercel KV. Create tables in the SQL Editor:

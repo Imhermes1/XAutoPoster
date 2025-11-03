@@ -2,22 +2,50 @@ import { OpenAI } from 'openai';
 import { BRAND_VOICE_PROMPT } from './constants';
 import { createClient } from '@supabase/supabase-js';
 
-function getClient() {
-  // Lazily instantiate to avoid requiring env at build time
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Missing LLM API key: set OPENROUTER_API_KEY (preferred) or OPENAI_API_KEY');
+async function getClient() {
+  // 1) Env var (OpenRouter only)
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (openrouterKey) {
+    return new OpenAI({ apiKey: openrouterKey, baseURL: 'https://openrouter.ai/api/v1' });
   }
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-  });
+
+  // 2) Try Supabase config if available (OpenRouter only)
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      // Select all to be resilient to differing column names
+      const { data, error } = await supabase
+        .from('automation_config')
+        .select('*')
+        .single();
+
+      if (!error && data) {
+        const key =
+          (data as any).llm_api_key ||
+          (data as any).openrouter_api_key ||
+          (data as any).api_key ||
+          null;
+
+        if (key) {
+          return new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' });
+        }
+      }
+    } catch (_e) {
+      // fall through to throw below
+    }
+  }
+
+  throw new Error('Missing LLM API key: set OPENROUTER_API_KEY or store it in Supabase automation_config (llm_api_key/openrouter_api_key/api_key).');
 }
 
 async function getSelectedModel(): Promise<string> {
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return process.env.OPENROUTER_MODEL || process.env.OPENAI_MODEL || 'google/gemini-2.0-flash-exp:free';
+      return process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
     }
 
     const supabase = createClient(
@@ -31,12 +59,12 @@ async function getSelectedModel(): Promise<string> {
       .single();
 
     if (error || !data?.llm_model) {
-      return process.env.OPENROUTER_MODEL || process.env.OPENAI_MODEL || 'google/gemini-2.0-flash-exp:free';
+      return process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
     }
 
     return data.llm_model;
   } catch {
-    return process.env.OPENROUTER_MODEL || process.env.OPENAI_MODEL || 'google/gemini-2.0-flash-exp:free';
+    return process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
   }
 }
 
@@ -73,7 +101,7 @@ export async function generatePost(
   const brandVoice = await getBrandVoiceInstructions();
   const prompt = `${brandVoice}\n\nTopic/News: ${topic}\n${context ? `Additional context: ${context}` : ''}\n\nGenerate a single engaging X post (max 280 characters, but aim for 200-260 for impact).\nReturn ONLY the post text, no explanations.\nMake it shareable, informative, and in your voice.`;
 
-  const client = getClient();
+  const client = await getClient();
   const model = await getSelectedModel();
 
   const message = await client.chat.completions.create({
@@ -113,7 +141,7 @@ export async function generateMultiplePosts(
 }
 
 export async function improveText(original: string): Promise<string> {
-  const client = getClient();
+  const client = await getClient();
   const prompt = `You are improving a draft X (Twitter) post while preserving its core meaning.
 
 Rules:
@@ -124,7 +152,7 @@ Rules:
 - Do NOT add a thread; return a single post text only.`;
 
   const message = await client.chat.completions.create({
-    model: process.env.OPENROUTER_MODEL || process.env.OPENAI_MODEL || 'google/gemini-2.0-flash-exp:free',
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
     messages: [
       { role: 'system', content: prompt },
       { role: 'user', content: `Draft:\n${original}` },
