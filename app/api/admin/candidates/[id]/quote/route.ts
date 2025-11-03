@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { improveText } from '@/lib/content-generator';
+import { generateQuoteTweetComment } from '@/lib/content-generator';
 import { markCandidateUsed } from '@/lib/candidates';
 import { postToXAdvanced } from '@/lib/x-api';
 import { savePostHistory } from '@/lib/kv-storage';
@@ -12,7 +12,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const supabase = getSupabase();
     const { data, error } = await supabase.from('candidates').select('id, external_id, text, url').eq('id', params.id).single();
     if (error || !data) return NextResponse.json({ error: 'candidate not found' }, { status: 404 });
-    if (!comment) comment = await improveText(data.text || 'Add a concise, insightful comment.');
+
+    // Generate AI comment if not provided
+    if (!comment) {
+      comment = await generateQuoteTweetComment(data.text || '');
+    }
+
     const result = await postToXAdvanced({ text: comment, quote_tweet_id: data.external_id });
     if (!result.success) return NextResponse.json({ success: false, error: result.error }, { status: 502 });
     await markCandidateUsed(params.id);
