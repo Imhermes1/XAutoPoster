@@ -31,9 +31,37 @@ npm run dev
 ## Deploy (Vercel)
 - Import the repo
 - Set Environment Variables (from `.env.example`)
-- Ensure KV (Upstash Redis) is provisioned and `KV_URL`/`KV_TOKEN` set
+- Ensure Supabase env vars are set (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
 - Cron (Hobby): single daily job `0 9 * * *` in `vercel.json`
 - Optional security: set `CRON_SECRET` in Vercel and require `Authorization: Bearer <secret>`
+
+## Database: Supabase setup
+Use Supabase (Postgres) instead of Vercel KV. Create tables in the SQL Editor:
+
+```sql
+-- Post history
+create table if not exists public.posts_history (
+  id uuid primary key default gen_random_uuid(),
+  text text not null,
+  posted_at timestamptz not null,
+  topic_id text
+);
+create index if not exists posts_history_posted_at_idx on public.posts_history (posted_at desc);
+
+-- Manual topics
+create table if not exists public.manual_topics (
+  id text primary key,
+  topic text not null,
+  added_at timestamptz not null,
+  used boolean not null default false
+);
+```
+
+Environment variables (server-only):
+- `SUPABASE_URL` — your project URL
+- `SUPABASE_SERVICE_ROLE_KEY` — service role key (keep server-side only)
+
+RLS: You can keep RLS enabled with permissive policies for service role, or disable RLS for these tables if only accessed server-side.
 
 ## Multiple posts/day on Hobby
 Vercel Hobby only allows one daily cron. Use GitHub Actions to call your endpoint multiple times per day:
