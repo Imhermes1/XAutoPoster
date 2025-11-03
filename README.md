@@ -32,10 +32,9 @@ npm run dev
 - Import the repo
 - Set Environment Variables (from `.env.example`)
 - Ensure KV (Upstash Redis) is provisioned and `KV_URL`/`KV_TOKEN` set
-- `vercel.json` includes cron schedules for 09:00, 13:00, 18:00
+- Cron: single job with multi-hour schedule `0 9,13,18 * * *` (fits lower plan limits)
 
 ## Notes
 - LLM: `OPENROUTER_MODEL` defaults to `google/gemini-2.0-flash-exp:free`
 - Daily cap via `DAILY_POST_LIMIT`
 - X API uses OAuth 1.0a to post to `/2/tweets`
-
