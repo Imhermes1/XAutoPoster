@@ -5,6 +5,10 @@ import { isAdminAuthorized } from '@/lib/auth';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+    // Bypass admin auth if no password configured or explicit bypass flag is set
+    if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_BYPASS === 'true') {
+      return NextResponse.next();
+    }
     const authorized = isAdminAuthorized(req.headers.get('cookie'));
     if (!authorized) {
       if (pathname.startsWith('/api/')) {
@@ -21,4 +25,3 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: ['/admin/:path*', '/api/admin/:path*'],
 };
-
