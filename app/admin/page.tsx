@@ -30,6 +30,11 @@ export default function AdminPage() {
   const [newCount, setNewCount] = useState(1);
   const [bulkCount, setBulkCount] = useState(1);
   const [bulkTopic, setBulkTopic] = useState('');
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [keywords, setKeywords] = useState<any[]>([]);
+  const [newHandle, setNewHandle] = useState('');
+  const [newQuery, setNewQuery] = useState('');
+  const [candidates, setCandidates] = useState<any[]>([]);
   const [compose, setCompose] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedModel, setSelectedModel] = useState('google/gemini-2.0-flash-exp:free');
@@ -53,13 +58,16 @@ export default function AdminPage() {
 
   const refresh = async () => {
     try {
-      const [s, t, h, c, m, u] = await Promise.all([
+      const [s, t, h, c, m, u, a, k, cand] = await Promise.all([
         fetch('/api/admin/sources').then(r => r.json()),
         fetch('/api/admin/topics').then(r => r.json()),
         fetch('/api/admin/history?limit=20').then(r => r.json()),
         fetch('/api/admin/config').then(r => r.json()).catch(() => ({})),
         fetch('/api/admin/media').then(r => r.json()).catch(() => ({ media: [] })),
         fetch('/api/admin/usage').then(r => r.json()).catch(() => ({})),
+        fetch('/api/admin/x/accounts').then(r => r.json()).catch(() => ({ accounts: [] })),
+        fetch('/api/admin/x/keywords').then(r => r.json()).catch(() => ({ keywords: [] })),
+        fetch('/api/admin/candidates?limit=20').then(r => r.json()).catch(() => ({ items: [] })),
       ]);
       setSources(s.sources || []);
       setTopics(t.topics || []);
@@ -68,6 +76,9 @@ export default function AdminPage() {
       setMedia(m.media || []);
       setUsageStats(u);
       setBrandVoiceInstructions(c.config?.brand_voice_instructions || '');
+      setAccounts(a.accounts || []);
+      setKeywords(k.keywords || []);
+      setCandidates(cand.items || []);
     } catch (error) {
       console.error('Failed to refresh:', error);
     }
@@ -224,6 +235,43 @@ export default function AdminPage() {
     refresh();
   };
 
+  const addAccount = async () => {
+    if (!newHandle) return;
+    await fetch('/api/admin/x/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle: newHandle }) });
+    setNewHandle('');
+    refresh();
+  };
+
+  const addKeyword = async () => {
+    if (!newQuery) return;
+    await fetch('/api/admin/x/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: newQuery }) });
+    setNewQuery('');
+    refresh();
+  };
+
+  const removeAccount = async (id: string) => {
+    await fetch(`/api/admin/x/accounts/${id}`, { method: 'DELETE' });
+    refresh();
+  };
+
+  const removeKeyword = async (id: string) => {
+    await fetch(`/api/admin/x/keywords/${id}`, { method: 'DELETE' });
+    refresh();
+  };
+
+  const ingestNow = async () => {
+    await fetch('/api/admin/candidates/ingest', { method: 'POST' });
+    refresh();
+  };
+
+  const aiQuoteCandidate = async (id: string) => {
+    const res = await fetch(`/api/admin/candidates/${id}/quote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comment: '' }) });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error || 'Quote failed');
+    alert('Quoted!');
+    refresh();
+  };
+
   const containerStyle: React.CSSProperties = {
     maxWidth: '100%',
     margin: '0 auto',
@@ -277,6 +325,65 @@ export default function AdminPage() {
 
       {/* Status Cards */}
       <div style={gridStyle}>
+        {/* X Accounts */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>X Accounts</h2>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexDirection: 'column' }}>
+            <input placeholder="@handle" value={newHandle} onChange={e => setNewHandle(e.target.value)} style={inputStyle} />
+            <button onClick={addAccount} style={buttonStyle}>Add Account</button>
+          </div>
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {accounts.map(acc => (
+              <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
+                <span style={{ flex: 1 }}>{acc.handle}</span>
+                <button onClick={() => removeAccount(acc.id)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Keywords */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Keywords</h2>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexDirection: 'column' }}>
+            <input placeholder="Search query (e.g. OpenAI)" value={newQuery} onChange={e => setNewQuery(e.target.value)} style={inputStyle} />
+            <button onClick={addKeyword} style={buttonStyle}>Add Keyword</button>
+          </div>
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {keywords.map(kw => (
+              <div key={kw.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
+                <span style={{ flex: 1 }}>{kw.query}</span>
+                <button onClick={() => removeKeyword(kw.id)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Candidates */}
+        <div style={sectionStyle}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Candidates</h2>
+          <button onClick={ingestNow} style={{ ...buttonStyle, marginBottom: 8 }}>Ingest Now</button>
+          <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+            {candidates.map(c => (
+              <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto', alignItems: 'center', gap: 8, padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
+                <div>
+                  {c.image_url ? <img src={c.image_url} alt="thumb" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4 }} /> : <div style={{ width: 64, height: 64, background: '#f3f4f6', borderRadius: 4 }} />}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{c.type.toUpperCase()} — {c.source}</div>
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 400 }}>{c.title || c.text}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {c.type === 'tweet' ? (
+                    <button onClick={() => aiQuoteCandidate(c.id)} style={{ ...buttonStyle, backgroundColor: '#16a34a' }}>AI Comment & Quote</button>
+                  ) : (
+                    <a href={c.url} target="_blank" rel="noreferrer" style={{ ...buttonStyle, backgroundColor: '#6b7280', textDecoration: 'none', display: 'inline-block', padding: '8px 12px' }}>Open</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
         {/* Compose */}
         <div style={sectionStyle}>
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Compose</h2>

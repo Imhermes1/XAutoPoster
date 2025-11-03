@@ -4,6 +4,8 @@ export interface PostRecord {
   text: string;
   postedAt: number;
   topicId?: string;
+  mediaIds?: string[];
+  quoteTweetId?: string;
 }
 
 export interface ManualTopic {
@@ -20,6 +22,8 @@ export async function savePostHistory(post: PostRecord): Promise<void> {
     text: post.text,
     posted_at: new Date(post.postedAt).toISOString(),
     topic_id: post.topicId ?? null,
+    media_ids: post.mediaIds ?? null,
+    quote_tweet_id: post.quoteTweetId ?? null,
   });
   if (error) throw error;
 }

@@ -49,7 +49,9 @@ create table if not exists public.posts_history (
   id uuid primary key default gen_random_uuid(),
   text text not null,
   posted_at timestamptz not null,
-  topic_id text
+  topic_id text,
+  media_ids text[],
+  quote_tweet_id text
 );
 create index if not exists posts_history_posted_at_idx on public.posts_history (posted_at desc);
 
@@ -68,6 +70,37 @@ create table if not exists public.sources (
   url text not null,
   category text,
   created_at timestamptz not null default now()
+);
+
+-- X ingestion
+create table if not exists public.sources_accounts (
+  id uuid primary key default gen_random_uuid(),
+  handle text not null unique,
+  user_id text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  last_fetched_at timestamptz
+);
+
+create table if not exists public.sources_keywords (
+  id uuid primary key default gen_random_uuid(),
+  query text not null unique,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  last_fetched_at timestamptz
+);
+
+create table if not exists public.candidates (
+  id uuid primary key default gen_random_uuid(),
+  type text not null check (type in ('tweet','rss')),
+  source text not null,
+  external_id text not null unique,
+  url text,
+  title text,
+  text text,
+  image_url text,
+  fetched_at timestamptz not null default now(),
+  used boolean not null default false
 );
 ```
 
