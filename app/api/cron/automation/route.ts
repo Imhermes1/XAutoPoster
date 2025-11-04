@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { postToX, postToXAdvanced } from '@/lib/x-api';
-import { savePostHistory } from '@/lib/kv-storage';
+import { savePostHistory, getLastPostTime } from '@/lib/kv-storage';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -219,11 +219,26 @@ export async function GET(request: NextRequest) {
         console.log(`[automation] Should generate new post: ${shouldGenerate}`);
 
         if (shouldGenerate) {
-          // Import the handler from /api/cron/post dynamically
-          const { GET: postHandler } = await import('../post/route');
-          const response = await postHandler(request);
-          results.new_post_generation = await response.json();
-          console.log('[automation] New post generation result:', results.new_post_generation);
+          // Check rate limit: no more than 1 post per hour
+          const lastPostTime = await getLastPostTime();
+          const oneHourAgo = Date.now() - (60 * 60 * 1000);
+
+          if (lastPostTime && lastPostTime > oneHourAgo) {
+            const minutesSinceLastPost = Math.floor((Date.now() - lastPostTime) / (60 * 1000));
+            const minutesUntilNextPost = 60 - minutesSinceLastPost;
+            console.log(`[automation] Rate limit: Last post was ${minutesSinceLastPost} minutes ago, need to wait ${minutesUntilNextPost} more minutes`);
+            results.new_post_generation = {
+              skipped: 'Rate limit: Less than 1 hour since last post',
+              last_post_minutes_ago: minutesSinceLastPost,
+              wait_minutes: minutesUntilNextPost,
+            };
+          } else {
+            // Import the handler from /api/cron/post dynamically
+            const { GET: postHandler } = await import('../post/route');
+            const response = await postHandler(request);
+            results.new_post_generation = await response.json();
+            console.log('[automation] New post generation result:', results.new_post_generation);
+          }
         } else {
           results.new_post_generation = {
             skipped: 'Not a posting time',

@@ -39,6 +39,19 @@ export async function getPostCount(days: number = 1): Promise<number> {
   return count || 0;
 }
 
+export async function getLastPostTime(): Promise<number | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('posts_history')
+    .select('posted_at')
+    .order('posted_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return new Date(data.posted_at).getTime();
+}
+
 export async function addManualTopic(topic: string): Promise<ManualTopic> {
   const supabase = getSupabase();
   const manualTopic: ManualTopic = {
