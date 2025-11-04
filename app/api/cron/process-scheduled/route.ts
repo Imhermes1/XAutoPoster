@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { postToX } from '@/lib/x-api';
+import { postToX, postToXAdvanced } from '@/lib/x-api';
 import { savePostHistory } from '@/lib/kv-storage';
 
 const supabase = createClient(
@@ -44,8 +44,17 @@ export async function GET() {
       try {
         console.log(`Posting scheduled tweet: ${post.id}`);
 
-        // Post to X
-        const result = await postToX(post.post_text);
+        // Post to X (with media if available)
+        let result;
+        if (post.media_ids && post.media_ids.length > 0) {
+          console.log(`Posting with ${post.media_ids.length} media attachment(s)`);
+          result = await postToXAdvanced({
+            text: post.post_text,
+            media_ids: post.media_ids,
+          });
+        } else {
+          result = await postToX(post.post_text);
+        }
 
         if (result.success) {
           // Update post status to posted

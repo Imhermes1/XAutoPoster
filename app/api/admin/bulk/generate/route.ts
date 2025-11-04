@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generatePost } from '@/lib/content-generator';
+import { uploadMediaFromUrl } from '@/lib/x-api';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -9,7 +10,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic, count, model, scheduled_times, save_as_draft } = await request.json();
+    const { topic, count, model, scheduled_times, save_as_draft, image_url } = await request.json();
 
     if (!topic || count < 1 || count > 20) {
       return NextResponse.json(
@@ -32,6 +33,25 @@ export async function POST(request: NextRequest) {
     // Determine status: draft, pending, or default (pending)
     const status = save_as_draft ? 'draft' : 'pending';
 
+    // Upload image if provided (once for all posts)
+    let mediaId: string | null = null;
+    if (image_url && typeof image_url === 'string' && image_url.trim()) {
+      try {
+        console.log('Uploading image for batch:', image_url);
+        const mediaUpload = await uploadMediaFromUrl(image_url);
+        if (mediaUpload.success && mediaUpload.media_id) {
+          mediaId = mediaUpload.media_id;
+          console.log('Image uploaded successfully, media_id:', mediaId);
+        } else {
+          console.warn('Image upload failed:', mediaUpload.error);
+          // Continue without image - don't fail the entire batch
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        // Continue without image - don't fail the entire batch
+      }
+    }
+
     // Generate posts
     for (let i = 0; i < count; i++) {
       try {
@@ -46,6 +66,11 @@ export async function POST(request: NextRequest) {
         // Add scheduled_for if times provided and not saving as draft
         if (scheduled_times && scheduled_times[i] && !save_as_draft) {
           postData.scheduled_for = new Date(scheduled_times[i]).toISOString();
+        }
+
+        // Add media_ids if image was uploaded
+        if (mediaId) {
+          postData.media_ids = [mediaId];
         }
 
         posts.push(postData);

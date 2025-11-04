@@ -22,6 +22,7 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
   const [generatedPosts, setGeneratedPosts] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [batchImageUrl, setBatchImageUrl] = useState('');
 
   useEffect(() => {
     fetchCandidates();
@@ -171,6 +172,7 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
           topic: batchTopic,
           count: batchCount,
           save_as_draft: true, // Save as drafts for preview
+          image_url: batchImageUrl || undefined, // Include image URL if provided
         }),
       });
       const data = await res.json();
@@ -218,6 +220,7 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
       showToast('success', 'Posts Scheduled!', `${data.updated} tweets scheduled over ${timeRangeHours} hours`);
       setGeneratedPosts([]);
       setBatchTopic('');
+      setBatchImageUrl('');
       onRefresh();
     } catch (e: any) {
       showToast('error', 'Scheduling Failed', e.message);
@@ -285,6 +288,19 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
           onChange={e => setBatchTopic(e.target.value)}
           style={{ ...input, marginBottom: 12 }}
         />
+
+        {/* Image URL Input */}
+        <input
+          placeholder="Image URL (optional) - will be attached to all tweets"
+          value={batchImageUrl}
+          onChange={e => setBatchImageUrl(e.target.value)}
+          style={{ ...input, marginBottom: 12 }}
+        />
+        {batchImageUrl && (
+          <p style={{ fontSize: 11, color: colors.gray[600], marginTop: -8, marginBottom: 12 }}>
+            This image will be downloaded and attached to all {batchCount} tweets
+          </p>
+        )}
 
         {/* Count Selector */}
         <div style={{ marginBottom: 12 }}>

@@ -31,6 +31,7 @@ export interface BatchGenerationRequest {
   model?: string;
   scheduled_times?: string[];
   save_as_draft?: boolean;
+  image_url?: string;
 }
 
 export interface BatchGenerationResponse {
