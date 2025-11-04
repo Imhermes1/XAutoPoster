@@ -8,8 +8,9 @@ import AutomationStatus from '@/components/AutomationStatus';
 import PipelineStatus from '@/components/PipelineStatus';
 import LogsViewer from '@/components/LogsViewer';
 import MediaLibrary from '@/components/MediaLibrary';
+import QueueViewer from '@/components/QueueViewer';
 
-type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media';
+type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue';
 
 export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
