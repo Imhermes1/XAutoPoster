@@ -9,8 +9,9 @@ import PipelineStatus from '@/components/PipelineStatus';
 import LogsViewer from '@/components/LogsViewer';
 import MediaLibrary from '@/components/MediaLibrary';
 import QueueViewer from '@/components/QueueViewer';
+import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 
-type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue';
+type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue' | 'analytics';
 
 export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -244,6 +245,9 @@ export default function AutomationDashboard() {
           <button style={tabStyle(activeTab === 'queue')} onClick={() => setActiveTab('queue')}>
             📅 Queue
           </button>
+          <button style={tabStyle(activeTab === 'analytics')} onClick={() => setActiveTab('analytics')}>
+            📊 Analytics
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -268,6 +272,9 @@ export default function AutomationDashboard() {
           )}
           {activeTab === 'queue' && (
             <QueueViewer onRefresh={refresh} />
+          )}
+          {activeTab === 'analytics' && (
+            <AnalyticsDashboard />
           )}
         </div>
       </div>
