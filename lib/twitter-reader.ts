@@ -46,8 +46,8 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
   let duplicates = 0;
 
   const [accRes, keyRes] = await Promise.all([
-    supabase.from('sources_accounts').select('id, handle, user_id, active'),
-    supabase.from('sources_keywords').select('id, query, active'),
+    supabase.from('sources_accounts').select('id, handle, user_id, active, last_fetched_at'),
+    supabase.from('sources_keywords').select('id, query, active, last_fetched_at'),
   ]);
   const mediaUrlByKey: Record<string, string | undefined> = {};
 
@@ -71,6 +71,16 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
   // Accounts
   for (const acc of accRes.data || []) {
     if (!acc.active) continue;
+
+    // Skip if fetched recently (within last 4 hours to conserve API calls)
+    if (acc.last_fetched_at) {
+      const lastFetch = new Date(acc.last_fetched_at).getTime();
+      const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
+      if (lastFetch > fourHoursAgo) {
+        console.log(`Skipping ${acc.handle} - fetched recently`);
+        continue;
+      }
+    }
 
     const logId = await startIngestionLog({
       source_type: 'account',
@@ -126,6 +136,9 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
 
       totalFound += tweets.length;
 
+      // Update last_fetched_at timestamp for account
+      await supabase.from('sources_accounts').update({ last_fetched_at: new Date().toISOString() }).eq('id', acc.id);
+
       await completeIngestionLog(logId!, {
         status: 'completed',
         items_found: tweets.length,
@@ -143,6 +156,16 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
   // Keywords
   for (const kw of keyRes.data || []) {
     if (!kw.active) continue;
+
+    // Skip if fetched recently (within last 4 hours to conserve API calls)
+    if (kw.last_fetched_at) {
+      const lastFetch = new Date(kw.last_fetched_at).getTime();
+      const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
+      if (lastFetch > fourHoursAgo) {
+        console.log(`Skipping keyword "${kw.query}" - fetched recently`);
+        continue;
+      }
+    }
 
     const logId = await startIngestionLog({
       source_type: 'keyword',
@@ -186,6 +209,9 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
       }
 
       totalFound += tweets.length;
+
+      // Update last_fetched_at timestamp for keyword
+      await supabase.from('sources_keywords').update({ last_fetched_at: new Date().toISOString() }).eq('id', kw.id);
 
       await completeIngestionLog(logId!, {
         status: 'completed',
