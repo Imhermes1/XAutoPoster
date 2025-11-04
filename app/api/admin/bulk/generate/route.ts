@@ -56,6 +56,13 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < count; i++) {
       try {
         const post = await generatePost(topic);
+
+        // Skip empty posts
+        if (!post || post.trim().length === 0) {
+          console.log(`Skipping empty post ${i + 1}`);
+          continue;
+        }
+
         const postData: any = {
           batch_id: batchId,
           post_text: post,
