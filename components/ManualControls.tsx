@@ -14,6 +14,15 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
   const [candidates, setCandidates] = useState<any[]>([]);
   const [ingesting, setIngesting] = useState(false);
 
+  // Batch generator state
+  const [batchTopic, setBatchTopic] = useState('');
+  const [batchCount, setBatchCount] = useState(3);
+  const [schedulingMode, setSchedulingMode] = useState<'auto' | 'custom'>('auto');
+  const [timeRangeHours, setTimeRangeHours] = useState(24);
+  const [generatedPosts, setGeneratedPosts] = useState<any[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+
   useEffect(() => {
     fetchCandidates();
   }, []);
@@ -150,6 +159,79 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
     }
   };
 
+  const generateBatchPosts = async () => {
+    if (!batchTopic.trim() || generating) return;
+    setGenerating(true);
+    showToast('info', 'Generating Posts', `Creating ${batchCount} tweets about "${batchTopic}"...`);
+    try {
+      const res = await fetch('/api/admin/bulk/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: batchTopic,
+          count: batchCount,
+          save_as_draft: true, // Save as drafts for preview
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to generate');
+
+      setGeneratedPosts(data.posts || []);
+      showToast('success', 'Posts Generated!', `Created ${data.posts_generated} tweets`);
+    } catch (e: any) {
+      showToast('error', 'Generation Failed', e.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const calculateSpreadTimes = (count: number, hours: number): Date[] => {
+    const now = new Date();
+    const interval = (hours * 60) / (count - 1); // minutes between posts
+    return Array.from({ length: count }, (_, i) =>
+      new Date(now.getTime() + i * interval * 60 * 1000)
+    );
+  };
+
+  const scheduleAllPosts = async () => {
+    if (generatedPosts.length === 0 || scheduling) return;
+    setScheduling(true);
+    showToast('info', 'Scheduling Posts', 'Setting up scheduled times...');
+    try {
+      const times = calculateSpreadTimes(generatedPosts.length, timeRangeHours);
+      const post_schedules = generatedPosts.map((post, i) => ({
+        id: post.id,
+        scheduled_for: times[i].toISOString(),
+      }));
+
+      const batchId = generatedPosts[0]?.batch_id;
+      if (!batchId) throw new Error('No batch ID found');
+
+      const res = await fetch(`/api/admin/bulk/${batchId}/schedule`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_schedules }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to schedule');
+
+      showToast('success', 'Posts Scheduled!', `${data.updated} tweets scheduled over ${timeRangeHours} hours`);
+      setGeneratedPosts([]);
+      setBatchTopic('');
+      onRefresh();
+    } catch (e: any) {
+      showToast('error', 'Scheduling Failed', e.message);
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const updatePostText = (index: number, newText: string) => {
+    const updated = [...generatedPosts];
+    updated[index].post_text = newText;
+    setGeneratedPosts(updated);
+  };
+
   const colors = {
     primary: '#2563eb',
     success: '#16a34a',
@@ -189,6 +271,133 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      {/* Batch Tweet Generator Section */}
+      <div style={section}>
+        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>🚀 Batch Tweet Generator</h3>
+        <p style={{ fontSize: 13, color: colors.gray[600], marginBottom: 16 }}>
+          Generate multiple tweets on a topic and schedule them to post over time
+        </p>
+
+        {/* Topic Input */}
+        <input
+          placeholder="Enter topic (e.g., 'Benefits of TypeScript')"
+          value={batchTopic}
+          onChange={e => setBatchTopic(e.target.value)}
+          style={{ ...input, marginBottom: 12 }}
+        />
+
+        {/* Count Selector */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: colors.gray[900], display: 'block', marginBottom: 6 }}>
+            Number of tweets: {batchCount}
+          </label>
+          <input
+            type="range"
+            min="3"
+            max="5"
+            value={batchCount}
+            onChange={e => setBatchCount(parseInt(e.target.value))}
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: colors.gray[600] }}>
+            <span>3</span>
+            <span>4</span>
+            <span>5</span>
+          </div>
+        </div>
+
+        {/* Time Range Selector */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: colors.gray[900], display: 'block', marginBottom: 6 }}>
+            Spread over: {timeRangeHours} hours
+          </label>
+          <select
+            value={timeRangeHours}
+            onChange={e => setTimeRangeHours(parseInt(e.target.value))}
+            style={{ ...input }}
+          >
+            <option value="1">1 hour</option>
+            <option value="3">3 hours</option>
+            <option value="6">6 hours</option>
+            <option value="12">12 hours</option>
+            <option value="24">24 hours</option>
+            <option value="48">48 hours</option>
+            <option value="72">72 hours</option>
+          </select>
+        </div>
+
+        {/* Generate Button */}
+        <button
+          onClick={generateBatchPosts}
+          disabled={!batchTopic.trim() || generating}
+          style={{ ...button, width: '100%', marginBottom: 16 }}
+        >
+          {generating ? '⟳ Generating...' : `Generate ${batchCount} Tweets`}
+        </button>
+
+        {/* Preview Section */}
+        {generatedPosts.length > 0 && (
+          <div style={{
+            marginTop: 16,
+            padding: 16,
+            background: colors.gray[50],
+            border: `1px solid ${colors.gray[200]}`,
+            borderRadius: 6,
+          }}>
+            <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Preview & Edit</h4>
+            {generatedPosts.map((post, index) => {
+              const scheduledTime = calculateSpreadTimes(generatedPosts.length, timeRangeHours)[index];
+              return (
+                <div
+                  key={post.id}
+                  style={{
+                    marginBottom: 12,
+                    padding: 12,
+                    background: 'white',
+                    border: `1px solid ${colors.gray[300]}`,
+                    borderRadius: 6,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: colors.gray[600] }}>
+                      Tweet {index + 1}
+                    </span>
+                    <span style={{ fontSize: 11, color: colors.gray[600] }}>
+                      📅 {scheduledTime.toLocaleString()}
+                    </span>
+                  </div>
+                  <textarea
+                    value={post.post_text}
+                    onChange={e => updatePostText(index, e.target.value)}
+                    style={{ ...input, minHeight: 60, marginBottom: 4, fontFamily: 'inherit' }}
+                  />
+                  <div style={{ fontSize: 11, color: post.post_text.length > 280 ? colors.danger : colors.gray[600] }}>
+                    {post.post_text.length}/280
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={scheduleAllPosts}
+                disabled={scheduling || generatedPosts.some(p => p.post_text.length > 280)}
+                style={{ ...button, flex: 1, background: colors.success }}
+              >
+                {scheduling ? 'Scheduling...' : `Schedule All ${generatedPosts.length} Tweets`}
+              </button>
+              <button
+                onClick={() => setGeneratedPosts([])}
+                style={{ ...button, background: colors.gray[600] }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Compose Section */}
       <div style={section}>
         <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>✍️ Compose Post</h3>

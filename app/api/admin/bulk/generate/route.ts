@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic, count, model } = await request.json();
+    const { topic, count, model, scheduled_times, save_as_draft } = await request.json();
 
     if (!topic || count < 1 || count > 20) {
       return NextResponse.json(
@@ -18,19 +18,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate scheduled_times if provided
+    if (scheduled_times && (!Array.isArray(scheduled_times) || scheduled_times.length !== count)) {
+      return NextResponse.json(
+        { error: 'scheduled_times must be an array matching count' },
+        { status: 400 }
+      );
+    }
+
     const batchId = crypto.randomUUID();
     const posts = [];
+
+    // Determine status: draft, pending, or default (pending)
+    const status = save_as_draft ? 'draft' : 'pending';
 
     // Generate posts
     for (let i = 0; i < count; i++) {
       try {
         const post = await generatePost(topic);
-        posts.push({
+        const postData: any = {
           batch_id: batchId,
           post_text: post,
-          status: 'pending',
+          status: status,
           created_at: new Date().toISOString(),
-        });
+        };
+
+        // Add scheduled_for if times provided and not saving as draft
+        if (scheduled_times && scheduled_times[i] && !save_as_draft) {
+          postData.scheduled_for = new Date(scheduled_times[i]).toISOString();
+        }
+
+        posts.push(postData);
 
         // Small delay between generations to avoid rate limits
         if (i < count - 1) {
