@@ -259,6 +259,7 @@ function SettingsTab({ config, onUpdate }: { config: any; onUpdate: () => void }
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: config?.id,
           enabled,
           posting_times: postingTimes,
           timezone,
