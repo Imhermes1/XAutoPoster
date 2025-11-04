@@ -107,6 +107,8 @@ export async function generatePost(
   const brandVoice = await getBrandVoiceInstructions();
   const prompt = `${brandVoice}\n\nTopic/News: ${topic}\n${context ? `Additional context: ${context}` : ''}\n\nGenerate a single engaging X post (max 280 characters, but aim for 200-260 for impact).\nReturn ONLY the post text, no explanations.\nMake it shareable, informative, and in your voice.`;
 
+  console.log('[generatePost] Prompt length:', prompt.length, 'characters');
+
   const client = await getClient();
   const model = await getSelectedModel();
 
@@ -118,7 +120,7 @@ export async function generatePost(
         content: prompt,
       },
     ],
-    max_tokens: 300,
+    max_tokens: 500,  // Increased from 300 to allow for longer prompts
   });
 
   const post = message.choices?.[0]?.message?.content || '';
