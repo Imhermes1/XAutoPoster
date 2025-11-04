@@ -120,7 +120,7 @@ export async function generatePost(
         content: prompt,
       },
     ],
-    max_tokens: 2000,  // Large buffer for detailed brand voice + output
+    max_tokens: 3000,  // Extra large buffer for 6246 char brand voice prompt
   });
 
   const post = message.choices?.[0]?.message?.content || '';
