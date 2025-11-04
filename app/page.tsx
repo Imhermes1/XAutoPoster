@@ -7,8 +7,9 @@ import ActivityFeed from '@/components/ActivityFeed';
 import AutomationStatus from '@/components/AutomationStatus';
 import PipelineStatus from '@/components/PipelineStatus';
 import LogsViewer from '@/components/LogsViewer';
+import MediaLibrary from '@/components/MediaLibrary';
 
-type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources';
+type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media';
 
 export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -182,6 +183,9 @@ export default function AutomationDashboard() {
           <button style={tabStyle(activeTab === 'sources')} onClick={() => setActiveTab('sources')}>
             📡 Sources
           </button>
+          <button style={tabStyle(activeTab === 'media')} onClick={() => setActiveTab('media')}>
+            🖼️ Media
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -194,6 +198,9 @@ export default function AutomationDashboard() {
           )}
           {activeTab === 'manual' && (
             <ManualControls onRefresh={refresh} />
+          )}
+          {activeTab === 'media' && (
+            <MediaLibrary showToast={showToast} />
           )}
           {activeTab === 'settings' && (
             <SettingsTab config={config} onUpdate={refresh} />

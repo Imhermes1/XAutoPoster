@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from './Toast';
+import MediaPicker from './MediaPicker';
 
 export default function ManualControls({ onRefresh }: { onRefresh: () => void }) {
   const { showToast } = useToast();
@@ -23,6 +24,10 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
   const [generating, setGenerating] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [batchImageUrl, setBatchImageUrl] = useState('');
+
+  // Media picker state
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<'compose' | 'batch'>('compose');
 
   useEffect(() => {
     fetchCandidates();
@@ -289,18 +294,50 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
           style={{ ...input, marginBottom: 12 }}
         />
 
-        {/* Image URL Input */}
-        <input
-          placeholder="Image URL (optional) - will be attached to all tweets"
-          value={batchImageUrl}
-          onChange={e => setBatchImageUrl(e.target.value)}
-          style={{ ...input, marginBottom: 12 }}
-        />
-        {batchImageUrl && (
-          <p style={{ fontSize: 11, color: colors.gray[600], marginTop: -8, marginBottom: 12 }}>
-            This image will be downloaded and attached to all {batchCount} tweets
-          </p>
-        )}
+        {/* Image Selection */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <button
+              onClick={() => {
+                setMediaPickerTarget('batch');
+                setShowMediaPicker(true);
+              }}
+              style={{
+                ...button,
+                background: colors.gray[600],
+                padding: '8px 16px',
+                fontSize: 13,
+              }}
+            >
+              🖼️ Select Image (Optional)
+            </button>
+            {batchImageUrl && (
+              <button
+                onClick={() => setBatchImageUrl('')}
+                style={{
+                  ...button,
+                  background: colors.danger,
+                  padding: '8px 16px',
+                  fontSize: 13,
+                }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {batchImageUrl && (
+            <div>
+              <img
+                src={batchImageUrl}
+                alt="Batch attachment"
+                style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 8, border: '1px solid ' + colors.gray[200], marginBottom: 8 }}
+              />
+              <p style={{ fontSize: 11, color: colors.gray[600] }}>
+                This image will be attached to all {batchCount} tweets
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Count Selector */}
         <div style={{ marginBottom: 12 }}>
@@ -423,6 +460,49 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
           placeholder="What's happening?"
           style={{ ...input, minHeight: 120, marginBottom: 12, fontFamily: 'inherit' }}
         />
+
+        {/* Image Attachment */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                setMediaPickerTarget('compose');
+                setShowMediaPicker(true);
+              }}
+              style={{
+                ...button,
+                background: colors.gray[600],
+                padding: '8px 16px',
+                fontSize: 13,
+              }}
+            >
+              🖼️ Add Image
+            </button>
+            {imageUrl && (
+              <button
+                onClick={() => setImageUrl('')}
+                style={{
+                  ...button,
+                  background: colors.danger,
+                  padding: '8px 16px',
+                  fontSize: 13,
+                }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {imageUrl && (
+            <div style={{ marginTop: 12, position: 'relative' }}>
+              <img
+                src={imageUrl}
+                alt="Attachment"
+                style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid ' + colors.gray[200] }}
+              />
+            </div>
+          )}
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div style={{
             fontSize: 13,
@@ -554,6 +634,20 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
           )}
         </div>
       </div>
+
+      {/* Media Picker Modal */}
+      {showMediaPicker && (
+        <MediaPicker
+          onSelect={(url) => {
+            if (mediaPickerTarget === 'compose') {
+              setImageUrl(url);
+            } else {
+              setBatchImageUrl(url);
+            }
+          }}
+          onClose={() => setShowMediaPicker(false)}
+        />
+      )}
     </div>
   );
 }
