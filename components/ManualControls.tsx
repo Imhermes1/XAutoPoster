@@ -24,6 +24,7 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
   const [generating, setGenerating] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [batchImageUrl, setBatchImageUrl] = useState('');
+  const [batchCustomInstructions, setBatchCustomInstructions] = useState('');
 
   // Media picker state
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -178,6 +179,7 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
           count: batchCount,
           save_as_draft: true, // Save as drafts for preview
           image_url: batchImageUrl || undefined, // Include image URL if provided
+          custom_instructions: batchCustomInstructions || undefined, // Include custom instructions if provided
         }),
       });
       const data = await res.json();
@@ -292,6 +294,20 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
           value={batchTopic}
           onChange={e => setBatchTopic(e.target.value)}
           style={{ ...input, marginBottom: 12 }}
+        />
+
+        {/* Custom Instructions */}
+        <textarea
+          placeholder="Custom instructions (optional, e.g., 'End each post with a question')"
+          value={batchCustomInstructions}
+          onChange={e => setBatchCustomInstructions(e.target.value)}
+          style={{
+            ...input,
+            marginBottom: 12,
+            minHeight: 60,
+            resize: 'vertical',
+            fontFamily: 'inherit',
+          }}
         />
 
         {/* Image Selection */}

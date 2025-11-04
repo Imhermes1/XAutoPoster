@@ -10,7 +10,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic, count, model, scheduled_times, save_as_draft, image_url } = await request.json();
+    const { topic, count, model, scheduled_times, save_as_draft, image_url, custom_instructions } = await request.json();
 
     if (!topic || count < 1 || count > 20) {
       return NextResponse.json(
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     // Generate posts
     for (let i = 0; i < count; i++) {
       try {
-        const post = await generatePost(topic);
+        const post = await generatePost(topic, undefined, custom_instructions);
 
         // Skip empty posts
         if (!post || post.trim().length === 0) {

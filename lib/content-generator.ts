@@ -102,12 +102,20 @@ async function getBrandVoiceInstructions(): Promise<string> {
 
 export async function generatePost(
   topic: string,
-  context?: string
+  context?: string,
+  customInstructions?: string
 ): Promise<string> {
   const brandVoice = await getBrandVoiceInstructions();
-  const prompt = `${brandVoice}\n\nTopic/News: ${topic}\n${context ? `Additional context: ${context}` : ''}\n\nGenerate a single engaging X post (max 280 characters, but aim for 200-260 for impact).\nReturn ONLY the post text, no explanations.\nMake it shareable, informative, and in your voice.`;
+
+  // If custom instructions provided, append them to brand voice
+  const instructions = customInstructions
+    ? `${brandVoice}\n\nADDITIONAL INSTRUCTIONS FOR THIS POST:\n${customInstructions}`
+    : brandVoice;
+
+  const prompt = `${instructions}\n\nTopic/News: ${topic}\n${context ? `Additional context: ${context}` : ''}\n\nGenerate a single engaging X post (max 280 characters, but aim for 200-260 for impact).\nReturn ONLY the post text, no explanations.\nMake it shareable, informative, and in your voice.`;
 
   console.log('[generatePost] Prompt length:', prompt.length, 'characters');
+  console.log('[generatePost] Has custom instructions:', !!customInstructions);
 
   const client = await getClient();
   const model = await getSelectedModel();
