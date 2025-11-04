@@ -31,15 +31,16 @@ GitHub Actions should be enabled by default, but verify:
 
 ## Schedule
 
-The workflow runs at:
-- **9:00 AM UTC** - Morning post generation
-- **1:00 PM UTC** - Afternoon post generation
-- **6:00 PM UTC** - Evening post generation
+The workflow runs **every 4 hours** (6 times per day) at 12 AM, 4 AM, 8 AM, 12 PM, 4 PM, 8 PM UTC.
 
 Each run:
 1. Processes any scheduled posts ready to be published
-2. Generates new content if it's a posting time
+2. Generates new content if it's a posting time (based on your Settings)
 3. Logs success/failure to GitHub Actions
+
+This ensures scheduled posts are published within ~4 hours of their scheduled time while keeping the automation running 24/7.
+
+**Usage**: With 500 posts/month limit on X (~16 posts/day), this balanced schedule provides regular posting without excessive API calls.
 
 ## Manual Trigger
 
