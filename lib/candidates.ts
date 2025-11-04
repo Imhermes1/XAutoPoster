@@ -55,9 +55,11 @@ export async function addCandidateIfNew(c: Candidate): Promise<boolean> {
 
 export async function listCandidates(limit = 20, type?: CandidateType): Promise<Candidate[]> {
   const supabase = getSupabase();
+  // Use wildcard selection to avoid errors when some columns
+  // (e.g., engagement metrics) haven’t been migrated yet.
   let q = supabase
     .from('candidates')
-    .select('id, type, source, external_id, url, title, text, image_url, fetched_at, used, overall_score, likes_count, retweets_count, replies_count, engagement_score')
+    .select('*')
     .eq('used', false)
     .order('fetched_at', { ascending: false })
     .limit(limit);
@@ -72,4 +74,3 @@ export async function markCandidateUsed(id: string): Promise<void> {
   const { error } = await supabase.from('candidates').update({ used: true }).eq('id', id);
   if (error) throw error;
 }
-
