@@ -32,7 +32,20 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
 
   useEffect(() => {
     fetchCandidates();
+
+    // Load custom instructions from localStorage
+    const savedInstructions = localStorage.getItem('batchCustomInstructions');
+    if (savedInstructions) {
+      setBatchCustomInstructions(savedInstructions);
+    }
   }, []);
+
+  // Save custom instructions to localStorage when changed
+  useEffect(() => {
+    if (batchCustomInstructions) {
+      localStorage.setItem('batchCustomInstructions', batchCustomInstructions);
+    }
+  }, [batchCustomInstructions]);
 
   const fetchCandidates = async () => {
     try {
@@ -196,9 +209,17 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
 
   const calculateSpreadTimes = (count: number, hours: number): Date[] => {
     const now = new Date();
+    const startOffset = 5; // Start 5 minutes in the future to ensure all times are future
+
+    // If only 1 post, schedule it at the start offset
+    if (count === 1) {
+      return [new Date(now.getTime() + startOffset * 60 * 1000)];
+    }
+
+    // For multiple posts, spread them over the time range
     const interval = (hours * 60) / (count - 1); // minutes between posts
     return Array.from({ length: count }, (_, i) =>
-      new Date(now.getTime() + i * interval * 60 * 1000)
+      new Date(now.getTime() + (startOffset + i * interval) * 60 * 1000)
     );
   };
 
@@ -228,6 +249,7 @@ export default function ManualControls({ onRefresh }: { onRefresh: () => void })
       setGeneratedPosts([]);
       setBatchTopic('');
       setBatchImageUrl('');
+      // Don't clear custom instructions - they persist for reuse
       onRefresh();
     } catch (e: any) {
       showToast('error', 'Scheduling Failed', e.message);
