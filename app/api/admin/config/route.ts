@@ -13,12 +13,20 @@ export async function GET() {
       .select('id, enabled, posting_times, timezone, randomize_minutes, daily_limit, llm_model, llm_provider, brand_voice_instructions, updated_at, created_at')
       .single();
 
+    console.log('[GET /api/admin/config] Query result:', {
+      has_data: !!data,
+      error_code: error?.code,
+      error_message: error?.message,
+      data_preview: data ? { id: data.id, llm_model: data.llm_model, has_brand_voice: !!data.brand_voice_instructions } : null
+    });
+
     if (error && error.code !== 'PGRST116') {
       throw error;
     }
 
     // If no config exists, return default
     if (!data) {
+      console.log('[GET /api/admin/config] No data found, returning defaults');
       return NextResponse.json({
         config: {
           id: null,
@@ -33,6 +41,7 @@ export async function GET() {
       });
     }
 
+    console.log('[GET /api/admin/config] Returning data from database');
     return NextResponse.json({ config: data });
   } catch (error) {
     console.error('Failed to fetch config:', error);
