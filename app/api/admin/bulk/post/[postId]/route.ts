@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { isAdminAuthorized } from '@/lib/auth';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -8,16 +7,10 @@ const supabase = createClient(
 );
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { postId: string } }
 ) {
   try {
-    // Check auth
-    const cookies = request.headers.get('cookie');
-    if (!isAdminAuthorized(cookies)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { postId } = params;
 
     const { error } = await supabase
