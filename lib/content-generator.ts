@@ -45,6 +45,7 @@ async function getClient() {
 async function getSelectedModel(): Promise<string> {
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.log('[getSelectedModel] No Supabase env vars, using fallback');
       return process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
     }
 
@@ -58,12 +59,17 @@ async function getSelectedModel(): Promise<string> {
       .select('llm_model')
       .single();
 
+    console.log('[getSelectedModel] Database query result:', { data, error: error?.message });
+
     if (error || !data?.llm_model) {
+      console.log('[getSelectedModel] Using fallback model due to error or no data');
       return process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
     }
 
+    console.log('[getSelectedModel] Using model from database:', data.llm_model);
     return data.llm_model;
-  } catch {
+  } catch (e) {
+    console.error('[getSelectedModel] Exception:', e);
     return process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
   }
 }
