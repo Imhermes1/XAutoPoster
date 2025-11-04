@@ -450,12 +450,17 @@ function SettingsTab({ config, onUpdate }: { config: any; onUpdate: () => void }
         <label style={labelStyle}>Timezone</label>
         <select value={timezone} onChange={e => setTimezone(e.target.value)} style={inputStyle}>
           <option value="UTC">UTC</option>
-          <option value="America/New_York">America/New_York</option>
-          <option value="America/Chicago">America/Chicago</option>
-          <option value="America/Los_Angeles">America/Los_Angeles</option>
-          <option value="Europe/London">Europe/London</option>
-          <option value="Europe/Paris">Europe/Paris</option>
-          <option value="Asia/Tokyo">Asia/Tokyo</option>
+          <option value="America/New_York">America/New_York (EST/EDT)</option>
+          <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+          <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+          <option value="Europe/London">Europe/London (GMT/BST)</option>
+          <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+          <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+          <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+          <option value="Australia/Melbourne">Australia/Melbourne (AEST/AEDT)</option>
+          <option value="Australia/Brisbane">Australia/Brisbane (AEST)</option>
+          <option value="Australia/Perth">Australia/Perth (AWST)</option>
+          <option value="Australia/Adelaide">Australia/Adelaide (ACST/ACDT)</option>
         </select>
       </div>
 
