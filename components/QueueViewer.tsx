@@ -33,8 +33,12 @@ export default function QueueViewer({ onRefresh }: { onRefresh: () => void }) {
     try {
       const res = await fetch(`/api/admin/bulk/post/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to delete');
+      }
       showToast('success', 'Post Deleted', 'Removed from queue');
       fetchQueue();
       onRefresh();
