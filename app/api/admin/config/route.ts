@@ -44,6 +44,12 @@ export async function POST(request: NextRequest) {
   try {
     const config = await request.json();
 
+    console.log('Received config:', {
+      id: config.id,
+      has_brand_voice: !!config.brand_voice_instructions,
+      brand_voice_length: config.brand_voice_instructions?.length || 0
+    });
+
     // Ensure required fields
     const payload = {
       enabled: config.enabled ?? true,
@@ -57,8 +63,14 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
+    console.log('Payload to save:', {
+      has_brand_voice: !!payload.brand_voice_instructions,
+      brand_voice_length: payload.brand_voice_instructions?.length || 0
+    });
+
     if (config.id) {
       // Update existing
+      console.log('Updating existing config with ID:', config.id);
       const { data, error } = await supabase
         .from('automation_config')
         .update(payload)
@@ -66,7 +78,14 @@ export async function POST(request: NextRequest) {
         .select('id, enabled, posting_times, timezone, randomize_minutes, daily_limit, llm_model, llm_provider, brand_voice_instructions, updated_at, created_at')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Update error:', error);
+        throw error;
+      }
+      console.log('Updated data:', {
+        has_brand_voice: !!data?.brand_voice_instructions,
+        brand_voice_length: data?.brand_voice_instructions?.length || 0
+      });
       return NextResponse.json({ config: data });
     } else {
       // Create new
