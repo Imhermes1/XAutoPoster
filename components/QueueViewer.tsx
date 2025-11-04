@@ -35,14 +35,20 @@ export default function QueueViewer({ onRefresh }: { onRefresh: () => void }) {
         method: 'DELETE',
         credentials: 'include',
       });
+
+      const data = await res.json();
       if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        throw new Error(error.error || 'Failed to delete');
+        throw new Error(data.error || 'Failed to delete');
       }
+
       showToast('success', 'Post Deleted', 'Removed from queue');
-      fetchQueue();
+
+      // Wait a moment for database to update, then refresh
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await fetchQueue();
       onRefresh();
     } catch (e: any) {
+      console.error('Delete error:', e);
       showToast('error', 'Delete Failed', e.message);
     } finally {
       setDeleting(null);
