@@ -192,10 +192,6 @@ export async function GET(request: NextRequest) {
 
     // 2. Check if it's time to generate new posts (run at posting times)
     const now = new Date();
-    const currentHour = now.getUTCHours();
-    const currentMinute = now.getUTCMinutes();
-
-    console.log(`[automation] Current UTC time: ${currentHour}:${currentMinute}`);
 
     // Fetch config to check posting times
     try {
@@ -203,10 +199,19 @@ export async function GET(request: NextRequest) {
       console.log('[automation] Config:', {
         enabled: config?.enabled,
         posting_times: config?.posting_times,
+        timezone: config?.timezone,
         has_config: !!config
       });
 
       if (config && config.enabled && config.posting_times) {
+        // Convert current UTC time to the configured timezone
+        const timeZone = config.timezone || 'UTC';
+        const localTime = now.toLocaleString('en-US', { timeZone, hour12: false, hour: '2-digit', minute: '2-digit' });
+        const [currentHour, currentMinute] = localTime.split(':').map(Number);
+
+        console.log(`[automation] Current time in ${timeZone}: ${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
+        console.log(`[automation] UTC time: ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`);
+
         // Check if current time matches any posting time (within 15 min window)
         const shouldGenerate = config.posting_times.some((time: string) => {
           const [hours, minutes] = time.split(':').map(Number);
@@ -242,7 +247,7 @@ export async function GET(request: NextRequest) {
         } else {
           results.new_post_generation = {
             skipped: 'Not a posting time',
-            current_time: `${currentHour}:${currentMinute} UTC`,
+            current_time: `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')} ${config.timezone}`,
             posting_times: config.posting_times
           };
         }
