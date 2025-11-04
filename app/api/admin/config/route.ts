@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       daily_limit: config.daily_limit ?? 2,
       llm_model: config.llm_model ?? 'google/gemini-2.0-flash-exp:free',
       llm_provider: config.llm_provider ?? 'openrouter',
+      brand_voice_instructions: config.brand_voice_instructions ?? null,
       updated_at: new Date().toISOString(),
     };
 
