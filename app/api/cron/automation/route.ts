@@ -1,4 +1,167 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { postToX, postToXAdvanced } from '@/lib/x-api';
+import { savePostHistory } from '@/lib/kv-storage';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
+
+async function getAutomationConfig() {
+  try {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('automation_config')
+      .select('*')
+      .single();
+
+    if (error) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function processScheduledPosts() {
+  try {
+    const now = new Date().toISOString();
+
+    // Fetch all pending posts that are due to be posted
+    const { data: duePostsData, error: fetchError } = await supabase
+      .from('bulk_post_queue')
+      .select('*')
+      .eq('status', 'pending')
+      .not('scheduled_for', 'is', null)
+      .lte('scheduled_for', now)
+      .order('scheduled_for', { ascending: true });
+
+    if (fetchError) {
+      console.error('Failed to fetch scheduled posts:', fetchError);
+      return { error: 'Failed to fetch scheduled posts' };
+    }
+
+    const duePosts = duePostsData || [];
+    console.log(`Found ${duePosts.length} posts due for posting`);
+
+    const results = {
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      posts: [] as any[],
+    };
+
+    // Process each post
+    for (const post of duePosts) {
+      try {
+        console.log(`Posting scheduled tweet: ${post.id}`);
+
+        // Post to X (with media if available)
+        let result;
+        if (post.media_ids && post.media_ids.length > 0) {
+          console.log(`Posting with ${post.media_ids.length} media attachment(s)`);
+          result = await postToXAdvanced({
+            text: post.post_text,
+            media_ids: post.media_ids,
+          });
+        } else {
+          result = await postToX(post.post_text);
+        }
+
+        if (result.success) {
+          // Update post status to posted
+          const { error: updateError } = await supabase
+            .from('bulk_post_queue')
+            .update({
+              status: 'posted',
+              posted_at: new Date().toISOString(),
+              x_post_id: result.id,
+            })
+            .eq('id', post.id);
+
+          if (updateError) {
+            console.error(`Failed to update post ${post.id}:`, updateError);
+          }
+
+          // Save to post history
+          await savePostHistory({
+            text: post.post_text,
+            postedAt: Date.now(),
+            topicId: undefined,
+          });
+
+          results.succeeded++;
+          results.posts.push({
+            id: post.id,
+            status: 'posted',
+            x_post_id: result.id,
+          });
+
+          console.log(`Successfully posted: ${post.id} -> ${result.id}`);
+        } else {
+          // Update post status to failed
+          const { error: updateError } = await supabase
+            .from('bulk_post_queue')
+            .update({
+              status: 'failed',
+              error_message: result.error || 'Unknown error',
+            })
+            .eq('id', post.id);
+
+          if (updateError) {
+            console.error(`Failed to update post ${post.id}:`, updateError);
+          }
+
+          results.failed++;
+          results.posts.push({
+            id: post.id,
+            status: 'failed',
+            error: result.error,
+          });
+
+          console.error(`Failed to post: ${post.id} - ${result.error}`);
+        }
+
+        results.processed++;
+
+        // Small delay between posts to avoid rate limiting
+        if (duePosts.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } catch (error) {
+        console.error(`Error processing post ${post.id}:`, error);
+
+        // Update post status to failed
+        await supabase
+          .from('bulk_post_queue')
+          .update({
+            status: 'failed',
+            error_message: String(error),
+          })
+          .eq('id', post.id);
+
+        results.failed++;
+        results.posts.push({
+          id: post.id,
+          status: 'failed',
+          error: String(error),
+        });
+      }
+    }
+
+    return {
+      success: true,
+      ...results,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Scheduled post processor failed:', error);
+    return { error: 'Failed to process scheduled posts' };
+  }
+}
 
 /**
  * Unified cron job that handles both:
@@ -15,16 +178,16 @@ export async function GET(request: NextRequest) {
       new_post_generation: null,
     };
 
+    console.log('[automation] Starting unified cron job');
+
     // 1. Always process scheduled posts
     try {
-      const scheduledRes = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/cron/process-scheduled`,
-        { method: 'GET' }
-      );
-      results.scheduled_posts = await scheduledRes.json();
+      console.log('[automation] Processing scheduled posts...');
+      results.scheduled_posts = await processScheduledPosts();
+      console.log('[automation] Scheduled posts result:', results.scheduled_posts);
     } catch (error) {
       console.error('Error processing scheduled posts:', error);
-      results.scheduled_posts = { error: 'Failed to process scheduled posts' };
+      results.scheduled_posts = { error: 'Failed to process scheduled posts', details: String(error) };
     }
 
     // 2. Check if it's time to generate new posts (run at posting times)
@@ -32,36 +195,55 @@ export async function GET(request: NextRequest) {
     const currentHour = now.getUTCHours();
     const currentMinute = now.getUTCMinutes();
 
+    console.log(`[automation] Current UTC time: ${currentHour}:${currentMinute}`);
+
     // Fetch config to check posting times
     try {
-      const configRes = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/admin/config`,
-        { method: 'GET' }
-      );
-      const { config } = await configRes.json();
+      const config = await getAutomationConfig();
+      console.log('[automation] Config:', {
+        enabled: config?.enabled,
+        posting_times: config?.posting_times,
+        has_config: !!config
+      });
 
       if (config && config.enabled && config.posting_times) {
         // Check if current time matches any posting time (within 15 min window)
         const shouldGenerate = config.posting_times.some((time: string) => {
           const [hours, minutes] = time.split(':').map(Number);
           const timeDiff = Math.abs((currentHour * 60 + currentMinute) - (hours * 60 + minutes));
-          return timeDiff <= 15; // 15 minute window
+          const matches = timeDiff <= 15; // 15 minute window
+          console.log(`[automation] Checking time ${time}: diff=${timeDiff}min, matches=${matches}`);
+          return matches;
         });
 
+        console.log(`[automation] Should generate new post: ${shouldGenerate}`);
+
         if (shouldGenerate) {
-          const postRes = await fetch(
-            `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/cron/post`,
-            { method: 'GET' }
-          );
-          results.new_post_generation = await postRes.json();
+          // Import the handler from /api/cron/post dynamically
+          const { GET: postHandler } = await import('../post/route');
+          const response = await postHandler(request);
+          results.new_post_generation = await response.json();
+          console.log('[automation] New post generation result:', results.new_post_generation);
         } else {
-          results.new_post_generation = { skipped: 'Not a posting time' };
+          results.new_post_generation = {
+            skipped: 'Not a posting time',
+            current_time: `${currentHour}:${currentMinute} UTC`,
+            posting_times: config.posting_times
+          };
         }
+      } else {
+        results.new_post_generation = {
+          skipped: 'Automation disabled or no config',
+          has_config: !!config,
+          enabled: config?.enabled
+        };
       }
     } catch (error) {
       console.error('Error generating new posts:', error);
-      results.new_post_generation = { error: 'Failed to generate new posts' };
+      results.new_post_generation = { error: 'Failed to generate new posts', details: String(error) };
     }
+
+    console.log('[automation] Unified cron job completed');
 
     return NextResponse.json({
       success: true,
@@ -71,7 +253,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Unified cron error:', error);
     return NextResponse.json(
-      { error: error.message || 'Cron job failed' },
+      { error: error.message || 'Cron job failed', details: String(error) },
       { status: 500 }
     );
   }
