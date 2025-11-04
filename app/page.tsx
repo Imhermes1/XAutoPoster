@@ -187,6 +187,9 @@ export default function AutomationDashboard() {
           <button style={tabStyle(activeTab === 'media')} onClick={() => setActiveTab('media')}>
             🖼️ Media
           </button>
+          <button style={tabStyle(activeTab === 'queue')} onClick={() => setActiveTab('queue')}>
+            📅 Queue
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -208,6 +211,9 @@ export default function AutomationDashboard() {
           )}
           {activeTab === 'sources' && (
             <SourcesTab onUpdate={refresh} />
+          )}
+          {activeTab === 'queue' && (
+            <QueueViewer onRefresh={refresh} />
           )}
         </div>
       </div>
