@@ -212,11 +212,11 @@ export async function GET(request: NextRequest) {
         console.log(`[automation] Current time in ${timeZone}: ${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
         console.log(`[automation] UTC time: ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`);
 
-        // Check if current time matches any posting time (within 15 min window)
+        // Check if current time matches any posting time (within 45 min window for testing)
         const shouldGenerate = config.posting_times.some((time: string) => {
           const [hours, minutes] = time.split(':').map(Number);
           const timeDiff = Math.abs((currentHour * 60 + currentMinute) - (hours * 60 + minutes));
-          const matches = timeDiff <= 15; // 15 minute window
+          const matches = timeDiff <= 45; // 45 minute window for testing
           console.log(`[automation] Checking time ${time}: diff=${timeDiff}min, matches=${matches}`);
           return matches;
         });
