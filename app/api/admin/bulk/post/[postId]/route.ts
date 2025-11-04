@@ -12,17 +12,25 @@ export async function DELETE(
 ) {
   try {
     const { postId } = params;
+    console.log(`[delete-post] Attempting to delete post: ${postId}`);
 
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('bulk_post_queue')
       .delete()
-      .eq('id', postId);
+      .eq('id', postId)
+      .select();
 
-    if (error) throw error;
+    console.log(`[delete-post] Delete response:`, { error, data });
 
-    return NextResponse.json({ success: true });
+    if (error) {
+      console.error(`[delete-post] Error deleting post ${postId}:`, error);
+      throw error;
+    }
+
+    console.log(`[delete-post] Successfully deleted post ${postId}`);
+    return NextResponse.json({ success: true, deleted: postId });
   } catch (error) {
-    console.error('Failed to delete post:', error);
+    console.error('[delete-post] Failed:', error);
     return NextResponse.json(
       { error: 'Failed to delete post' },
       { status: 500 }
