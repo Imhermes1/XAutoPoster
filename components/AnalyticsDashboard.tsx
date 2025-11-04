@@ -118,7 +118,7 @@ export default function AnalyticsDashboard() {
         }}
       >
         <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 18, fontWeight: 700 }}>
-          ⚙️ Autopilot Health
+          Autopilot Health
         </h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
@@ -284,7 +284,7 @@ export default function AnalyticsDashboard() {
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>📋 Activity Log</h3>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Activity Log</h3>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['all', 'posted', 'scheduled', 'failed'] as const).map((f) => (
               <button

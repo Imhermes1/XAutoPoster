@@ -64,37 +64,37 @@ export default function AutomationDashboard() {
 
   const pageStyle: React.CSSProperties = {
     minHeight: '100vh',
-    background: `linear-gradient(135deg, #f0f9ff 0%, #f9fafb 100%)`,
+    background: '#fafbfc',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
   };
 
   const containerStyle: React.CSSProperties = {
     maxWidth: 1400,
     margin: '0 auto',
-    padding: '40px 32px',
+    padding: '48px 32px',
   };
 
   const headerStyle: React.CSSProperties = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 40,
+    marginBottom: 48,
     padding: '0',
   };
 
   const titleStyle: React.CSSProperties = {
-    fontSize: 38,
-    fontWeight: 800,
+    fontSize: 42,
+    fontWeight: 700,
     color: colors.gray[900],
     margin: 0,
-    letterSpacing: '-0.02em',
+    letterSpacing: '-0.01em',
   };
 
   const subtitleStyle: React.CSSProperties = {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.gray[500],
-    margin: '12px 0 0 0',
-    fontWeight: 500,
+    margin: '8px 0 0 0',
+    fontWeight: 400,
   };
 
   const tabsStyle: React.CSSProperties = {
@@ -163,9 +163,9 @@ export default function AutomationDashboard() {
         {/* Header */}
         <div style={headerStyle}>
           <div>
-            <h1 style={titleStyle}>🤖 X Autoposter</h1>
+            <h1 style={titleStyle}>X Autoposter</h1>
             <p style={subtitleStyle}>
-              Automation-first social media management
+              Smart automation for social media
             </p>
           </div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -174,26 +174,25 @@ export default function AutomationDashboard() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '10px 18px',
-                borderRadius: 12,
+                gap: 8,
+                padding: '8px 16px',
+                borderRadius: 8,
                 backgroundColor: authStatus.authenticated ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                border: `1.5px solid ${authStatus.authenticated ? colors.success : colors.danger}`,
-                boxShadow: `0 1px 3px ${authStatus.authenticated ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'}`,
+                border: `1px solid ${authStatus.authenticated ? colors.success : colors.danger}`,
               }}>
                 <div style={{
-                  width: 10,
-                  height: 10,
+                  width: 8,
+                  height: 8,
                   borderRadius: '50%',
                   backgroundColor: authStatus.authenticated ? colors.success : colors.danger,
                   animation: authStatus.authenticated ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
                 }} />
                 <span style={{
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: 13,
+                  fontWeight: 500,
                   color: authStatus.authenticated ? colors.success : colors.danger,
                 }}>
-                  {authStatus.authenticated ? 'Connected' : 'Not Connected'}
+                  {authStatus.authenticated ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
             )}
@@ -202,17 +201,21 @@ export default function AutomationDashboard() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '10px 18px',
-                borderRadius: 12,
+                gap: 8,
+                padding: '8px 16px',
+                borderRadius: 8,
                 backgroundColor: config.enabled ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
-                border: `1.5px solid ${config.enabled ? colors.success : colors.warning}`,
-                boxShadow: `0 1px 3px ${config.enabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'}`,
+                border: `1px solid ${config.enabled ? colors.success : colors.warning}`,
               }}>
-                <span style={{ fontSize: 18 }}>{config.enabled ? '▶️' : '⏸️'}</span>
+                <div style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: config.enabled ? colors.success : colors.warning,
+                }} />
                 <span style={{
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: 13,
+                  fontWeight: 500,
                   color: config.enabled ? colors.success : colors.warning,
                 }}>
                   {config.enabled ? 'Active' : 'Paused'}
@@ -225,28 +228,28 @@ export default function AutomationDashboard() {
         {/* Tabs */}
         <div style={tabsStyle}>
           <button style={tabStyle(activeTab === 'dashboard')} onClick={() => setActiveTab('dashboard')}>
-            📊 Dashboard
+            Dashboard
           </button>
           <button style={tabStyle(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>
-            📋 Logs
+            Logs
           </button>
           <button style={tabStyle(activeTab === 'manual')} onClick={() => setActiveTab('manual')}>
-            ✍️ Manual Control
+            Manual
           </button>
           <button style={tabStyle(activeTab === 'settings')} onClick={() => setActiveTab('settings')}>
-            ⚙️ Settings
+            Settings
           </button>
           <button style={tabStyle(activeTab === 'sources')} onClick={() => setActiveTab('sources')}>
-            📡 Sources
+            Sources
           </button>
           <button style={tabStyle(activeTab === 'media')} onClick={() => setActiveTab('media')}>
-            🖼️ Media
+            Media
           </button>
           <button style={tabStyle(activeTab === 'queue')} onClick={() => setActiveTab('queue')}>
-            📅 Queue
+            Queue
           </button>
           <button style={tabStyle(activeTab === 'analytics')} onClick={() => setActiveTab('analytics')}>
-            📊 Analytics
+            Analytics
           </button>
         </div>
 
@@ -662,7 +665,7 @@ function SourcesTab({ onUpdate }: { onUpdate: () => void }) {
     <div>
       {/* RSS Sources */}
       <div style={section}>
-        <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>📡 RSS Feeds</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>RSS Feeds</h3>
         <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20, fontWeight: 500 }}>
           Add RSS feeds to automatically pull content for posting
         </p>
@@ -721,7 +724,7 @@ function SourcesTab({ onUpdate }: { onUpdate: () => void }) {
 
       {/* X Accounts */}
       <div style={section}>
-        <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>👤 X Accounts</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>X Accounts</h3>
         <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20, fontWeight: 500 }}>
           Monitor specific X accounts for content to retweet or quote tweet
         </p>
@@ -768,7 +771,7 @@ function SourcesTab({ onUpdate }: { onUpdate: () => void }) {
 
       {/* X Keywords */}
       <div style={section}>
-        <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>🔍 Keywords & Hashtags</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>Keywords & Hashtags</h3>
         <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20, fontWeight: 500 }}>
           Search for tweets containing specific keywords or hashtags
         </p>
