@@ -123,6 +123,14 @@ export async function generatePost(
 
   const post = message.choices?.[0]?.message?.content || '';
 
+  console.log('[generatePost] API response:', {
+    model,
+    has_choices: !!message.choices?.length,
+    content_length: post.length,
+    content_preview: post.substring(0, 100),
+    finish_reason: message.choices?.[0]?.finish_reason
+  });
+
   if (post.length > 280) {
     return post.substring(0, 277) + '...';
   }
