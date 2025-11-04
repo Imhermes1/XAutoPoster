@@ -150,6 +150,9 @@ async function handlePost(req: Request) {
               text: candidate.text ?? undefined,
               url: candidate.url ?? undefined,
               source: candidate.source,
+              likes_count: candidate.likes_count,
+              retweets_count: candidate.retweets_count,
+              replies_count: candidate.replies_count,
             },
             analysisContext,
             runId!

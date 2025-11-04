@@ -42,6 +42,9 @@ export async function analyzeContent(
     text?: string;
     url?: string;
     source: string;
+    likes_count?: number;
+    retweets_count?: number;
+    replies_count?: number;
   },
   context: AnalysisContext = {},
   automationRunId?: string
@@ -110,6 +113,26 @@ export async function analyzeContent(
       scores.brand_fit_score * 0.20 +
       scores.engagement_potential * 0.20
     );
+
+    // Boost score for high-engagement tweets (trending detection)
+    if (candidate.type === 'tweet') {
+      const engagementScore =
+        (candidate.likes_count || 0) * 1.0 +
+        (candidate.retweets_count || 0) * 2.0 +
+        (candidate.replies_count || 0) * 0.5;
+
+      // Apply engagement boost for viral content
+      if (engagementScore > 500) {
+        // Very high engagement (500+) - significant boost
+        scores.overall_score = Math.min(1.0, scores.overall_score + 0.15);
+      } else if (engagementScore > 200) {
+        // High engagement (200+) - moderate boost
+        scores.overall_score = Math.min(1.0, scores.overall_score + 0.10);
+      } else if (engagementScore > 100) {
+        // Medium engagement (100+) - small boost
+        scores.overall_score = Math.min(1.0, scores.overall_score + 0.05);
+      }
+    }
 
     // Apply filters and make decision
     const minScore = context.min_score ?? 0.7;

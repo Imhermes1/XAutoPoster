@@ -14,6 +14,10 @@ export interface Candidate {
   fetched_at?: string;
   used?: boolean;
   overall_score?: number | null;
+  likes_count?: number;
+  retweets_count?: number;
+  replies_count?: number;
+  engagement_score?: number;
 }
 
 export async function addCandidateIfNew(c: Candidate): Promise<boolean> {
@@ -41,6 +45,9 @@ export async function addCandidateIfNew(c: Candidate): Promise<boolean> {
     image_url: c.image_url ?? null,
     fetched_at: c.fetched_at ?? new Date().toISOString(),
     used: c.used ?? false,
+    likes_count: c.likes_count ?? 0,
+    retweets_count: c.retweets_count ?? 0,
+    replies_count: c.replies_count ?? 0,
   }]);
 
   return !error; // True if inserted successfully
@@ -50,7 +57,7 @@ export async function listCandidates(limit = 20, type?: CandidateType): Promise<
   const supabase = getSupabase();
   let q = supabase
     .from('candidates')
-    .select('id, type, source, external_id, url, title, text, image_url, fetched_at, used, overall_score')
+    .select('id, type, source, external_id, url, title, text, image_url, fetched_at, used, overall_score, likes_count, retweets_count, replies_count, engagement_score')
     .eq('used', false)
     .order('fetched_at', { ascending: false })
     .limit(limit);

@@ -17,7 +17,7 @@ export async function fetchUserTweets(userId: string, max = 5) {
     max_results: String(Math.min(max, 100)),
     expansions: 'attachments.media_keys',
     'media.fields': 'url,preview_image_url',
-    'tweet.fields': 'created_at',
+    'tweet.fields': 'created_at,public_metrics',
   });
   const url = `https://api.x.com/2/users/${userId}/tweets?${params.toString()}`;
   const res = await oauthFetch(url, 'GET');
@@ -31,7 +31,7 @@ export async function searchTweets(query: string, max = 10) {
     max_results: String(Math.min(max, 100)),
     expansions: 'attachments.media_keys',
     'media.fields': 'url,preview_image_url',
-    'tweet.fields': 'created_at',
+    'tweet.fields': 'created_at,public_metrics',
   });
   const url = `https://api.x.com/2/tweets/search/recent?${params.toString()}`;
   const res = await oauthFetch(url, 'GET');
@@ -62,6 +62,9 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
       id: t.id as string,
       text: t.text as string,
       image_url: (t.attachments?.media_keys || []).map((k: string) => mediaUrlByKey[k]).find(Boolean),
+      likes_count: t.public_metrics?.like_count || 0,
+      retweets_count: t.public_metrics?.retweet_count || 0,
+      replies_count: t.public_metrics?.reply_count || 0,
     }));
   };
 
@@ -108,6 +111,9 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
           url: `https://x.com/${acc.handle.replace(/^@/, '')}/status/${tw.id}`,
           text: tw.text,
           image_url: tw.image_url,
+          likes_count: tw.likes_count,
+          retweets_count: tw.retweets_count,
+          replies_count: tw.replies_count,
         });
         if (result) {
           newCount++;
@@ -166,6 +172,9 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
           url: `https://x.com/i/web/status/${tw.id}`,
           text: tw.text,
           image_url: tw.image_url,
+          likes_count: tw.likes_count,
+          retweets_count: tw.retweets_count,
+          replies_count: tw.replies_count,
         });
         if (result) {
           newCount++;
