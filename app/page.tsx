@@ -271,8 +271,12 @@ function SettingsTab({ config, onUpdate }: { config: any; onUpdate: () => void }
 
       if (!res.ok) throw new Error('Failed to save settings');
 
+      const data = await res.json();
+
       showToast('success', 'Settings Saved', 'Configuration updated successfully');
-      onUpdate();
+
+      // Don't call onUpdate() immediately - it causes useEffect to reset form fields
+      // The form already has the correct state, no need to refetch and reset
     } catch (error: any) {
       showToast('error', 'Save Failed', error.message);
     } finally {
