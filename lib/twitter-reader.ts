@@ -72,11 +72,11 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
   for (const acc of accRes.data || []) {
     if (!acc.active) continue;
 
-    // Skip if fetched recently (within last 4 hours to conserve API calls)
+    // Skip if fetched recently (within last 24 hours to conserve API calls for free tier)
     if (acc.last_fetched_at) {
       const lastFetch = new Date(acc.last_fetched_at).getTime();
-      const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
-      if (lastFetch > fourHoursAgo) {
+      const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+      if (lastFetch > twentyFourHoursAgo) {
         console.log(`Skipping ${acc.handle} - fetched recently`);
         continue;
       }
@@ -157,11 +157,11 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
   for (const kw of keyRes.data || []) {
     if (!kw.active) continue;
 
-    // Skip if fetched recently (within last 4 hours to conserve API calls)
+    // Skip if fetched recently (within last 24 hours to conserve API calls for free tier)
     if (kw.last_fetched_at) {
       const lastFetch = new Date(kw.last_fetched_at).getTime();
-      const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
-      if (lastFetch > fourHoursAgo) {
+      const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+      if (lastFetch > twentyFourHoursAgo) {
         console.log(`Skipping keyword "${kw.query}" - fetched recently`);
         continue;
       }
