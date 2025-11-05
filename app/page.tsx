@@ -572,6 +572,11 @@ function SourcesTab({ onUpdate }: { onUpdate: () => void }) {
   const [newXHandle, setNewXHandle] = useState('');
   const [newXKeyword, setNewXKeyword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [twitterUsername, setTwitterUsername] = useState('');
+  const [convertingTwitter, setConvertingTwitter] = useState(false);
+  const [twitterMessage, setTwitterMessage] = useState('');
+  const [fetchingRss, setFetchingRss] = useState(false);
+  const [fetchMessage, setFetchMessage] = useState('');
 
   const loadSources = async () => {
     try {
@@ -680,6 +685,50 @@ function SourcesTab({ onUpdate }: { onUpdate: () => void }) {
     onUpdate();
   };
 
+  const convertTwitterToRss = async () => {
+    if (!twitterUsername.trim()) return;
+    setConvertingTwitter(true);
+    setTwitterMessage('');
+    try {
+      const response = await fetch('/api/admin/sources/twitter-to-rss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: twitterUsername }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to convert');
+      setTwitterMessage(`✅ Converted @${data.username} → ${data.rssUrl}`);
+      setNewRssUrl(data.rssUrl);
+      setNewRssCategory('Twitter');
+      setTwitterUsername('');
+      setTimeout(() => setTwitterMessage(''), 5000);
+    } catch (error) {
+      setTwitterMessage(`❌ ${String(error)}`);
+    } finally {
+      setConvertingTwitter(false);
+    }
+  };
+
+  const fetchRssNow = async () => {
+    setFetchingRss(true);
+    setFetchMessage('');
+    try {
+      const response = await fetch('/api/cron/fetch-rss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch RSS');
+      setFetchMessage(`✅ Fetched ${data.inserted || 0} new items in ${Math.round(data.duration_ms / 1000)}s`);
+      setTimeout(() => setFetchMessage(''), 5000);
+      onUpdate();
+    } catch (error) {
+      setFetchMessage(`❌ ${String(error)}`);
+    } finally {
+      setFetchingRss(false);
+    }
+  };
+
   const section = {
     padding: '28px',
     marginBottom: 24,
@@ -724,6 +773,80 @@ function SourcesTab({ onUpdate }: { onUpdate: () => void }) {
 
   return (
     <div>
+      {/* Fetch Now Button */}
+      <div style={{ ...section, backgroundColor: '#fef3c7', border: '1px solid #fbbf24', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#92400e', margin: 0 }}>🔄 Fetch RSS Now</h3>
+          <button
+            onClick={fetchRssNow}
+            disabled={fetchingRss}
+            style={{
+              ...button,
+              backgroundColor: fetchingRss ? '#d1d5db' : '#f59e0b',
+              opacity: fetchingRss ? 0.6 : 1,
+              cursor: fetchingRss ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {fetchingRss ? 'Fetching...' : '🔄 Fetch Now'}
+          </button>
+        </div>
+        {fetchMessage && (
+          <div style={{
+            fontSize: 13,
+            padding: 8,
+            backgroundColor: 'white',
+            borderRadius: 6,
+            border: '1px solid #fbbf24',
+          }}>
+            {fetchMessage}
+          </div>
+        )}
+      </div>
+
+      {/* Twitter to RSS Converter */}
+      <div style={{ ...section, backgroundColor: '#dbeafe', border: '1px solid #3b82f6', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#1e40af', marginTop: 0 }}>
+          🐦 Convert Twitter Profile to RSS
+        </h3>
+        <p style={{ fontSize: 13, color: '#1e40af', marginBottom: 12 }}>
+          Convert any Twitter profile to an RSS feed using Nitter
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+          <input
+            type="text"
+            placeholder="@username or username"
+            value={twitterUsername}
+            onChange={e => setTwitterUsername(e.target.value)}
+            onKeyPress={e => e.key === 'Enter' && convertTwitterToRss()}
+            style={input}
+          />
+          <button
+            onClick={convertTwitterToRss}
+            disabled={convertingTwitter || !twitterUsername.trim()}
+            style={{
+              ...button,
+              backgroundColor: convertingTwitter ? '#d1d5db' : '#3b82f6',
+              opacity: convertingTwitter || !twitterUsername.trim() ? 0.6 : 1,
+              cursor: convertingTwitter || !twitterUsername.trim() ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {convertingTwitter ? 'Converting...' : 'Convert'}
+          </button>
+        </div>
+        {twitterMessage && (
+          <div style={{
+            fontSize: 13,
+            marginTop: 12,
+            padding: 8,
+            backgroundColor: 'white',
+            borderRadius: 6,
+            border: '1px solid #3b82f6',
+          }}>
+            {twitterMessage}
+          </div>
+        )}
+      </div>
+
       {/* RSS Sources */}
       <div style={section}>
         <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>RSS Feeds</h3>
