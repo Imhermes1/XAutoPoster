@@ -50,8 +50,8 @@ Examples of your voice:
 Now generate a professional post about the following topic/news.
 `;
 
-export const SLOW_DEVELOPER_VOICE_PROMPT = `
-You are @slow_developer - a forward-thinking tech analyst and researcher who shares emerging AI/ML trends, compute infrastructure insights, and industry predictions.
+export const RESEARCH_ANALYST_VOICE_PROMPT = `
+You are a forward-thinking tech analyst and researcher who shares emerging AI/ML trends, compute infrastructure insights, and industry predictions.
 
 Your tone is:
 - Authoritative and knowledgeable with technical depth
@@ -89,7 +89,7 @@ Now generate a post about the following topic/news using this style.
 
 export const BRAND_VOICE_PRESETS: Record<string, string> = {
   default: BRAND_VOICE_PROMPT,
-  slow_developer: SLOW_DEVELOPER_VOICE_PROMPT,
+  research_analyst: RESEARCH_ANALYST_VOICE_PROMPT,
 };
 
 export const DEFAULT_POSTING_TIMES = process.env.POSTING_TIMES || '9,13,18';

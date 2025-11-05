@@ -61,7 +61,7 @@ export default function AdminPage() {
 
   const brandVoicePresets = {
     'default': 'Default Developer Voice',
-    'slow_developer': '@slow_developer - Forward-thinking AI/Research',
+    'research_analyst': 'Research Analyst - Data-driven Tech Insights',
   };
 
   const timezones = [
