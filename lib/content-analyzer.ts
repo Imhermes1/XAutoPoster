@@ -54,10 +54,14 @@ export async function analyzeContent(
   try {
     // Get LLM configuration
     const apiKey = process.env.OPENROUTER_API_KEY;
-    const model = process.env.LLM_MODEL || 'google/gemini-2.0-flash-exp:free';
+    const model = process.env.LLM_MODEL;
 
     if (!apiKey) {
       throw new Error('OPENROUTER_API_KEY not configured');
+    }
+
+    if (!model) {
+      throw new Error('LLM_MODEL not configured. Please set it via environment variable or configure in Settings.');
     }
 
     const openai = new OpenAI({

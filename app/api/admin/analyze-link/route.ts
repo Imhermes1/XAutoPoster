@@ -9,17 +9,18 @@ const supabase = createClient(
 async function getSelectedModel(): Promise<string> {
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      // Use Claude Haiku for link analysis - much better tweet quality
-      return 'anthropic/claude-haiku-4.5-20250901';
+      throw new Error('No Supabase configuration');
     }
     const { data } = await supabase
       .from('automation_config')
       .select('llm_model')
       .single();
-    // For link analysis, always use Claude Haiku regardless of config
-    return 'anthropic/claude-haiku-4.5-20250901';
-  } catch {
-    return 'anthropic/claude-haiku-4.5-20250901';
+    if (!data?.llm_model) {
+      throw new Error('No LLM model configured in Settings');
+    }
+    return data.llm_model;
+  } catch (e) {
+    throw new Error('No LLM model configured. Please select a model in the Settings tab.');
   }
 }
 

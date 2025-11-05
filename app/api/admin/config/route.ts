@@ -24,20 +24,11 @@ export async function GET() {
       throw error;
     }
 
-    // If no config exists, return default
+    // If no config exists, return null - user must configure
     if (!data) {
-      console.log('[GET /api/admin/config] No data found, returning defaults');
+      console.log('[GET /api/admin/config] No data found');
       return NextResponse.json({
-        config: {
-          id: null,
-          enabled: true,
-          posting_times: ['09:00', '13:00', '18:00'],
-          timezone: 'UTC',
-          randomize_minutes: 15,
-          daily_limit: 2,
-          llm_model: 'google/gemini-2.0-flash-exp:free',
-          llm_provider: 'openrouter',
-        },
+        config: null,
       });
     }
 
@@ -59,14 +50,18 @@ export async function POST(request: NextRequest) {
       brand_voice_length: config.brand_voice_instructions?.length || 0
     });
 
-    // Ensure required fields
+    // Validate required fields
+    if (!config.llm_model) {
+      return NextResponse.json({ error: 'LLM model is required' }, { status: 400 });
+    }
+
     const payload = {
       enabled: config.enabled ?? true,
       posting_times: config.posting_times ?? ['09:00', '13:00', '18:00'],
       timezone: config.timezone ?? 'UTC',
       randomize_minutes: config.randomize_minutes ?? 15,
       daily_limit: config.daily_limit ?? 2,
-      llm_model: config.llm_model ?? 'google/gemini-2.0-flash-exp:free',
+      llm_model: config.llm_model,
       llm_provider: config.llm_provider ?? 'openrouter',
       brand_voice_instructions: config.brand_voice_instructions ?? null,
       updated_at: new Date().toISOString(),
