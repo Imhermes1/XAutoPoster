@@ -371,8 +371,25 @@ export async function GET(request: NextRequest) {
                 .eq('id', candidate.id);
 
               if (!updateError) {
-                generated++;
-                console.log(`[automation] Generated tweet for ${candidate.id}`);
+                // Add generated tweet to bulk_post_queue as draft
+                const { error: queueError } = await supabase
+                  .from('bulk_post_queue')
+                  .insert({
+                    text: tweetText,
+                    status: 'draft',
+                    metadata: {
+                      candidate_id: candidate.id,
+                      source: candidate.source,
+                      analysis_score: candidate.analysis_score
+                    }
+                  });
+
+                if (!queueError) {
+                  generated++;
+                  console.log(`[automation] Generated tweet for ${candidate.id} and added to queue`);
+                } else {
+                  console.error(`[automation] Failed to add to queue:`, queueError);
+                }
               }
             }
           } catch (error) {
