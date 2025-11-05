@@ -401,75 +401,137 @@ export async function logActivity(params: {
 // ============================================================================
 
 export async function getRecentAutomationRuns(limit: number = 10) {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('automation_runs')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(limit);
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('automation_runs')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(limit);
 
-  return data || [];
+    if (error) {
+      console.error('[getRecentAutomationRuns] Database error:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('[getRecentAutomationRuns] Exception:', err);
+    return [];
+  }
 }
 
 export async function getRecentActivity(limit: number = 50) {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('activity_stream')
-    .select('*')
-    .order('timestamp', { ascending: false })
-    .limit(limit);
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('activity_stream')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(limit);
 
-  return data || [];
+    if (error) {
+      console.error('[getRecentActivity] Database error:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('[getRecentActivity] Exception:', err);
+    return [];
+  }
 }
 
 export async function getIngestionHistory(sourceType?: string, limit: number = 20) {
-  const supabase = getSupabase();
-  let query = supabase
-    .from('ingestion_logs')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(limit);
+  try {
+    const supabase = getSupabase();
+    let query = supabase
+      .from('ingestion_logs')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(limit);
 
-  if (sourceType) {
-    query = query.eq('source_type', sourceType);
+    if (sourceType) {
+      query = query.eq('source_type', sourceType);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('[getIngestionHistory] Database error:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('[getIngestionHistory] Exception:', err);
+    return [];
   }
-
-  const { data } = await query;
-  return data || [];
 }
 
 export async function getContentAnalysisLogs(candidateId?: string, limit: number = 20) {
-  const supabase = getSupabase();
-  let query = supabase
-    .from('content_analysis_logs')
-    .select('*, candidates(title, text, source)')
-    .order('analyzed_at', { ascending: false })
-    .limit(limit);
+  try {
+    const supabase = getSupabase();
+    let query = supabase
+      .from('content_analysis_logs')
+      .select('*, candidates(title, text, source)')
+      .order('analyzed_at', { ascending: false })
+      .limit(limit);
 
-  if (candidateId) {
-    query = query.eq('candidate_id', candidateId);
+    if (candidateId) {
+      query = query.eq('candidate_id', candidateId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('[getContentAnalysisLogs] Database error:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('[getContentAnalysisLogs] Exception:', err);
+    return [];
   }
-
-  const { data } = await query;
-  return data || [];
 }
 
 export async function getPostGenerationHistory(limit: number = 20) {
-  const supabase = getSupabase();
-  const { data } = await supabase
-    .from('post_generation_logs')
-    .select('*')
-    .order('generated_at', { ascending: false })
-    .limit(limit);
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('post_generation_logs')
+      .select('*')
+      .order('generated_at', { ascending: false })
+      .limit(limit);
 
-  return data || [];
+    if (error) {
+      console.error('[getPostGenerationHistory] Database error:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('[getPostGenerationHistory] Exception:', err);
+    return [];
+  }
 }
 
 export async function getPipelineStatus() {
-  const supabase = getSupabase();
-  const { data } = await supabase
-    .from('content_pipeline_status')
-    .select('*');
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('content_pipeline_status')
+      .select('*');
 
-  return data || [];
+    if (error) {
+      console.error('[getPipelineStatus] Database error:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('[getPipelineStatus] Exception:', err);
+    return [];
+  }
 }
