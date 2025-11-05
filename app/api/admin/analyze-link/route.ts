@@ -7,21 +7,8 @@ const supabase = createClient(
 );
 
 async function getSelectedModel(): Promise<string> {
-  try {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('No Supabase configuration');
-    }
-    const { data } = await supabase
-      .from('automation_config')
-      .select('llm_model')
-      .single();
-    if (!data?.llm_model) {
-      throw new Error('No LLM model configured in Settings');
-    }
-    return data.llm_model;
-  } catch (e) {
-    throw new Error('No LLM model configured. Please select a model in the Settings tab.');
-  }
+  // Always use Claude Haiku for link analysis - best tweet quality
+  return 'anthropic/claude-haiku-4.5-20250901';
 }
 
 async function getApiKey(): Promise<string> {
