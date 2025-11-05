@@ -6,13 +6,14 @@ import ManualControls from '@/components/ManualControls';
 import ActivityFeed from '@/components/ActivityFeed';
 import AutomationStatus from '@/components/AutomationStatus';
 import PipelineStatus from '@/components/PipelineStatus';
+import PipelineTracker from '@/components/PipelineTracker';
 import LogsViewer from '@/components/LogsViewer';
 import MediaLibrary from '@/components/MediaLibrary';
 import QueueViewer from '@/components/QueueViewer';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import LinkAnalyzer from '@/components/LinkAnalyzer';
 
-type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue' | 'analytics' | 'link-analyzer';
+type Tab = 'dashboard' | 'pipeline' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue' | 'analytics' | 'link-analyzer';
 
 export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -231,6 +232,9 @@ export default function AutomationDashboard() {
           <button style={tabStyle(activeTab === 'dashboard')} onClick={() => setActiveTab('dashboard')}>
             Dashboard
           </button>
+          <button style={tabStyle(activeTab === 'pipeline')} onClick={() => setActiveTab('pipeline')}>
+            Pipeline
+          </button>
           <button style={tabStyle(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>
             Logs
           </button>
@@ -261,6 +265,9 @@ export default function AutomationDashboard() {
         <div style={contentStyle}>
           {activeTab === 'dashboard' && (
             <DashboardTab config={config} authStatus={authStatus} />
+          )}
+          {activeTab === 'pipeline' && (
+            <PipelineTracker />
           )}
           {activeTab === 'logs' && (
             <LogsViewer />
