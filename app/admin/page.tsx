@@ -13,6 +13,7 @@ type AutomationConfig = {
   llm_model: string;
   llm_provider: string;
   brand_voice_instructions?: string;
+  brand_voice_preset?: string;
 };
 type SecretsStatus = {
   ok?: boolean;
@@ -55,7 +56,13 @@ export default function AdminPage() {
   const [selectedModel, setSelectedModel] = useState('google/gemini-2.0-flash-exp:free');
   const [customModel, setCustomModel] = useState('');
   const [brandVoiceInstructions, setBrandVoiceInstructions] = useState('');
+  const [brandVoicePreset, setBrandVoicePreset] = useState<string>('');
   const [isEditingBrandVoice, setIsEditingBrandVoice] = useState(false);
+
+  const brandVoicePresets = {
+    'default': 'Default Developer Voice',
+    'slow_developer': '@slow_developer - Forward-thinking AI/Research',
+  };
 
   const timezones = [
     'UTC',
@@ -92,6 +99,7 @@ export default function AdminPage() {
       setMedia(m.media || []);
       setUsageStats(u);
       setBrandVoiceInstructions(c.config?.brand_voice_instructions || '');
+      setBrandVoicePreset(c.config?.brand_voice_preset || '');
       setAccounts(a.accounts || []);
       setKeywords(k.keywords || []);
       setCandidates(cand.items || []);
@@ -200,7 +208,10 @@ export default function AdminPage() {
   };
 
   const saveBrandVoiceInstructions = async () => {
-    await updateConfig({ brand_voice_instructions: brandVoiceInstructions });
+    await updateConfig({
+      brand_voice_instructions: brandVoiceInstructions,
+      brand_voice_preset: brandVoicePreset || undefined,
+    });
     setIsEditingBrandVoice(false);
   };
 
@@ -630,15 +641,45 @@ export default function AdminPage() {
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Brand Voice & Tone</h2>
           {!isEditingBrandVoice ? (
             <div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6, color: '#374151' }}>Voice Preset:</div>
+                <div style={{ fontSize: 13, color: '#1f2937', padding: '8px 12px', backgroundColor: '#e5e7eb', borderRadius: 4 }}>
+                  {brandVoicePreset && brandVoicePresets[brandVoicePreset as keyof typeof brandVoicePresets]
+                    ? brandVoicePresets[brandVoicePreset as keyof typeof brandVoicePresets]
+                    : 'None - Using custom instructions'}
+                </div>
+              </div>
               <div style={{ fontSize: 12, color: '#666', padding: '12px', backgroundColor: '#f3f4f6', borderRadius: 4, minHeight: 80, marginBottom: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {brandVoiceInstructions || 'No instructions set. Click "Edit" to add custom brand voice guidelines.'}
               </div>
               <button onClick={() => setIsEditingBrandVoice(true)} style={buttonStyle}>
-                Edit Instructions
+                Edit Voice
               </button>
             </div>
           ) : (
             <div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
+                  Select a Preset (or leave empty for custom):
+                </label>
+                <select
+                  value={brandVoicePreset}
+                  onChange={e => setBrandVoicePreset(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    width: '100%',
+                    marginBottom: 12,
+                  }}
+                >
+                  <option value="">None (use custom instructions below)</option>
+                  {Object.entries(brandVoicePresets).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
+                Custom Instructions (optional if preset selected):
+              </label>
               <textarea
                 value={brandVoiceInstructions}
                 onChange={e => setBrandVoiceInstructions(e.target.value)}

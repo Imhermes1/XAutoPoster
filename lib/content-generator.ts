@@ -1,5 +1,5 @@
 import { OpenAI } from 'openai';
-import { BRAND_VOICE_PROMPT } from './constants';
+import { BRAND_VOICE_PROMPT, BRAND_VOICE_PRESETS } from './constants';
 import { createClient } from '@supabase/supabase-js';
 
 async function getClient() {
@@ -85,8 +85,13 @@ async function getBrandVoiceInstructions(): Promise<string> {
 
     const { data, error } = await supabase
       .from('automation_config')
-      .select('brand_voice_instructions')
+      .select('brand_voice_instructions, brand_voice_preset')
       .single();
+
+    // If preset is selected, use it (takes precedence over custom instructions)
+    if (data?.brand_voice_preset && BRAND_VOICE_PRESETS[data.brand_voice_preset]) {
+      return BRAND_VOICE_PRESETS[data.brand_voice_preset];
+    }
 
     if (error || !data?.brand_voice_instructions) {
       return BRAND_VOICE_PROMPT;
