@@ -8,7 +8,7 @@ const supabase = createClient(
 
 async function getSelectedModel(): Promise<string> {
   // Always use Claude Haiku for link analysis - best tweet quality
-  return 'anthropic/claude-haiku-4.5-20250901';
+  return 'claude-haiku-4.5-20250901';
 }
 
 async function getApiKey(): Promise<string> {
