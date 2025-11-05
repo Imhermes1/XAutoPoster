@@ -33,9 +33,9 @@ export async function GET() {
         diagnostics.checks.automation_config = {
           status: config.enabled ? 'ok' : 'disabled',
           enabled: config.enabled,
-          posting_times: config.posting_times || ['09:00', '12:00', '14:00', '16:00', '18:00'],
+          posting_times: config.posting_times || ['08:00', '10:00', '12:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'],
           timezone: config.timezone || 'Australia/Sydney',
-          daily_limit: config.daily_limit || 2,
+          daily_limit: config.daily_limit || 10,
           llm_model: config.llm_model || 'not set',
         };
 

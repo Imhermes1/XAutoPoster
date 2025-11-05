@@ -57,10 +57,10 @@ export async function POST(request: NextRequest) {
 
     const payload = {
       enabled: config.enabled ?? true,
-      posting_times: config.posting_times ?? ['09:00', '12:00', '14:00', '16:00', '18:00'],
+      posting_times: config.posting_times ?? ['08:00', '10:00', '12:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'],
       timezone: config.timezone ?? 'Australia/Sydney',
       randomize_minutes: config.randomize_minutes ?? 15,
-      daily_limit: config.daily_limit ?? 5,
+      daily_limit: config.daily_limit ?? 10,
       llm_model: config.llm_model,
       llm_provider: config.llm_provider ?? 'openrouter',
       brand_voice_instructions: config.brand_voice_instructions ?? null,

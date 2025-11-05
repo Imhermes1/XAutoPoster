@@ -329,18 +329,18 @@ function SettingsTab({ config, onUpdate }: { config: any; onUpdate: () => void }
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(config?.enabled ?? false);
-  const [postingTimes, setPostingTimes] = useState<string[]>(config?.posting_times || ['09:00', '12:00', '14:00', '16:00', '18:00']);
+  const [postingTimes, setPostingTimes] = useState<string[]>(config?.posting_times || ['08:00', '10:00', '12:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00']);
   const [timezone, setTimezone] = useState(config?.timezone || 'Australia/Sydney');
-  const [dailyLimit, setDailyLimit] = useState(config?.daily_limit || 5);
+  const [dailyLimit, setDailyLimit] = useState(config?.daily_limit || 10);
   const [llmModel, setLlmModel] = useState(config?.llm_model || '');
   const [brandVoice, setBrandVoice] = useState(config?.brand_voice_instructions || '');
 
   useEffect(() => {
     if (config) {
       setEnabled(config.enabled);
-      setPostingTimes(config.posting_times || ['09:00', '12:00', '14:00', '16:00', '18:00']);
+      setPostingTimes(config.posting_times || ['08:00', '10:00', '12:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00']);
       setTimezone(config.timezone || 'Australia/Sydney');
-      setDailyLimit(config.daily_limit || 5);
+      setDailyLimit(config.daily_limit || 10);
       setLlmModel(config.llm_model || '');
       setBrandVoice(config.brand_voice_instructions || '');
     }
