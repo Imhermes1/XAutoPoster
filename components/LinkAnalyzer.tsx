@@ -192,17 +192,14 @@ export default function LinkAnalyzer() {
       {tweets.length > 0 && (
         <div style={cardStyle}>
           <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 16, fontWeight: 700 }}>
-            Generated Tweet Ideas ({tweets.length})
+            Ready to Post ({tweets.length})
           </h3>
 
           {tweets.map((tweet, idx) => (
             <div key={idx} style={tweetCardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: colors.primary }}>
-                  Tip {idx + 1}
-                </span>
                 <span style={{ fontSize: 11, color: colors.gray[500] }}>
-                  {tweet.length} chars
+                  Tweet {idx + 1} • {tweet.length} chars
                 </span>
               </div>
               <p style={tweetTextStyle}>

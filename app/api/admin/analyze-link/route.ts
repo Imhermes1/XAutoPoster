@@ -67,22 +67,30 @@ async function generateTweetIdeas(content: string, url: string): Promise<string[
     throw new Error('No LLM API key configured');
   }
 
-  const prompt = `You are a social media expert. Read this web content and generate 3 insightful, actionable tips/insights that would be valuable for Twitter/X followers.
+  const prompt = `You are an expert at crafting engaging tweets for tech/professional audiences on X.
 
-Each insight should be:
-- Concise and specific (fit in a tweet or thread)
-- Actionable and valuable
-- Based directly on the content
-- Unique and thought-provoking
+Read this web content and create 3 standalone tweets that:
+1. Start with a hook or question to grab attention
+2. Highlight the key takeaway (1 specific, concrete insight)
+3. Are ready-to-post (under 280 chars, no hashtags unless essential)
+4. Sound authentic and conversational, not like AI
+5. Make readers think "I should know this" or "I should try this"
+
+DO NOT:
+- Use generic phrases like "fun fact" or "pro tip"
+- Include "thread:" or "1/" - make standalone tweets
+- Be too promotional or salesy
+- Repeat information across the 3 tweets
+- Use emoji (unless it genuinely adds value)
 
 Content from ${url}:
 ${content}
 
-Generate exactly 3 tweet ideas as a JSON array with this format:
+Generate exactly 3 tweets as a JSON array with this format:
 [
-  { "tip": "First insightful tip here", "explanation": "Brief explanation of why this matters" },
-  { "tip": "Second insightful tip here", "explanation": "Brief explanation" },
-  { "tip": "Third insightful tip here", "explanation": "Brief explanation" }
+  { "tweet": "Your actual tweet text here under 280 chars" },
+  { "tweet": "Second standalone tweet here" },
+  { "tweet": "Third standalone tweet here" }
 ]
 
 Respond with ONLY the JSON array, no other text.`;
@@ -120,7 +128,7 @@ Respond with ONLY the JSON array, no other text.`;
   }
 
   const ideas = JSON.parse(jsonMatch[0]);
-  return ideas.map((idea: any) => idea.tip);
+  return ideas.map((idea: any) => idea.tweet);
 }
 
 export async function POST(req: Request) {
