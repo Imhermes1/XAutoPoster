@@ -467,17 +467,14 @@ async function runAutomation(request: NextRequest) {
 
               if (!updateError) {
                 // Add generated tweet to bulk_post_queue as draft
+                // Note: batch_id is required - using a dummy batch for single-candidate generation
                 const { error: queueError } = await supabase
                   .from('bulk_post_queue')
                   .insert({
-                    text: tweetText,
-                    status: 'draft',
-                    metadata: {
-                      candidate_id: candidate.id,
-                      source: candidate.source,
-                      overall_score: candidate.overall_score,
-                      type: candidate.type
-                    }
+                    batch_id: '00000000-0000-0000-0000-000000000000', // Dummy batch ID for auto-generated posts
+                    post_text: tweetText,
+                    status: 'draft'
+                    // Note: candidate_id is not a column in bulk_post_queue - it was already marked as used above
                   });
 
                 if (!queueError) {
