@@ -115,27 +115,32 @@ async function generateTweetIdeas(content: string, url: string): Promise<string[
   const prompt = `You are a legendary tech Twitter user known for threads that people actually read. Create 3 great tweet options.
 
 CRITICAL RULES:
-1. Each tweet can be part of a thread (use 🧵 marker if it is)
+1. NO EMOJI - text only, absolutely no emojis
 2. Include the link: ${url}
-3. No hashtags, no emoji in the text itself (only use 🧵 for thread indicator)
-4. No AI-speak. Sound like a real person - conversational, smart, direct
-5. Make them ENGAGING - tell a story, include a specific example, or reveal something surprising
-6. Avoid generic statements - be specific about the "why it matters"
-7. Can exceed 280 chars if it's part of a compelling thread (we'll handle threading on our end)
-8. Lead with the hook - first sentence should make someone STOP SCROLLING
-9. Use real examples, data, or scenarios where possible
+3. No hashtags. Sound like a real person - conversational, smart, direct
+4. Make them GENUINELY ENGAGING - tell a story, include a specific example, reveal something surprising or counterintuitive
+5. Avoid generic/obvious statements - be specific about WHY this matters and WHO should care
+6. Can exceed 280 chars for compelling content (we handle threading)
+7. LEAD WITH THE HOOK - first 1-2 sentences should make someone stop scrolling
+8. Use real examples, numbers, or specific scenarios where possible
+9. Create tension or curiosity - pose a problem, challenge an assumption, or reveal an insight
+10. Make it debate-worthy - something people will want to quote or argue with
 
 The content to base tweets on:
 ${content}
 
-Generate 3 different tweet options (varied approaches - one educational, one practical, one builder-focused):
+Generate 3 different tweet options (varied approaches):
+- Tweet 1: Problem/insight angle (identify a widespread misconception or problem)
+- Tweet 2: Practical/actionable angle (specific takeaway people can use)
+- Tweet 3: Narrative/story angle (engaging story or scenario that illustrates the point)
+
 [
-  { "tweet": "tweet text with link, use 🧵 at start if it's a thread tweet" },
-  { "tweet": "tweet text with link, use 🧵 at start if it's a thread tweet" },
-  { "tweet": "tweet text with link, use 🧵 at start if it's a thread tweet" }
+  { "tweet": "tweet text with link" },
+  { "tweet": "tweet text with link" },
+  { "tweet": "tweet text with link" }
 ]
 
-Only output the JSON array.`;
+Only output the JSON array. No emojis anywhere.`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
