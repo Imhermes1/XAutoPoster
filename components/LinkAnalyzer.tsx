@@ -8,6 +8,7 @@ export default function LinkAnalyzer() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState<number | null>(null);
+  const [queueing, setQueueing] = useState<number | null>(null);
   const [tweets, setTweets] = useState<string[]>([]);
   const [contentSummary, setContentSummary] = useState('');
   const [analyzedUrl, setAnalyzedUrl] = useState('');
@@ -116,6 +117,49 @@ export default function LinkAnalyzer() {
       showToast('error', 'Post Failed', errorMessage);
     } finally {
       setPosting(null);
+    }
+  };
+
+  const queueTweet = async (tweetIndex: number, tweetText: string) => {
+    setQueueing(tweetIndex);
+    try {
+      const res = await fetch('/api/admin/analyze-link/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tweets: [tweetText],
+          url: analyzedUrl
+        }),
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        const errorMsg = data?.error || 'Failed to queue tweet';
+        throw new Error(errorMsg);
+      }
+
+      if (data?.success) {
+        showToast('success', 'Queued', 'Tweet added to queue! Check the Queue tab to schedule and post.');
+      } else {
+        throw new Error(data?.error || 'Failed to queue tweet');
+      }
+    } catch (e: any) {
+      console.error('Queue error:', e);
+      let errorMessage = 'Unknown error queueing tweet';
+
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      } else if (typeof e === 'string') {
+        errorMessage = e;
+      } else if (typeof e === 'object' && e !== null) {
+        errorMessage = JSON.stringify(e);
+      }
+
+      showToast('error', 'Queue Failed', errorMessage);
+    } finally {
+      setQueueing(null);
     }
   };
 
@@ -307,6 +351,24 @@ export default function LinkAnalyzer() {
                   }}
                 >
                   {posting === idx ? 'Posting...' : 'Post to X'}
+                </button>
+                <button
+                  onClick={() => queueTweet(idx, displayTweet)}
+                  disabled={queueing === idx}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    backgroundColor: colors.success,
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: queueing === idx ? 'not-allowed' : 'pointer',
+                    color: '#fff',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    opacity: queueing === idx ? 0.6 : 1,
+                  }}
+                >
+                  {queueing === idx ? 'Adding...' : 'Add to Queue'}
                 </button>
                 <button
                   onClick={() => {
