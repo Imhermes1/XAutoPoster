@@ -11,8 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Vercel Cron Endpoint
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          response=$(curl -s -w "\n%{http_code}" "${{ secrets.VERCEL_APP_URL }}/api/cron/automation")
+          response=$(curl -s -w "\n%{http_code}" "${{ secrets.VERCEL_APP_URL }}/api/cron/automation" \
+            -H "X-OpenRouter-Key: $OPENROUTER_API_KEY")
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
 

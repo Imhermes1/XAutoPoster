@@ -187,6 +187,14 @@ async function runAutomation(request: NextRequest) {
 
     console.log('[automation] Starting unified cron job');
 
+    // Extract OpenRouter API key from request header if provided by GitHub Actions
+    const openrouterKeyFromHeader = request.headers.get('X-OpenRouter-Key');
+    if (openrouterKeyFromHeader) {
+      console.log('[automation] Using OpenRouter API key from request header');
+      // Set it as an environment variable so generatePost can use it
+      process.env.OPENROUTER_API_KEY = openrouterKeyFromHeader;
+    }
+
     // Start automation logging
     automationRunId = await startAutomationRun('cron');
     if (!automationRunId) {
