@@ -6,6 +6,70 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+async function downloadAndUploadImage(imageUrl: string): Promise<string | null> {
+  try {
+    // Download image from URL
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const buffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    // Validate it's a real image type
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validImageTypes.some(type => contentType.includes(type))) {
+      return null;
+    }
+
+    // Check file size (max 5MB for X API compliance)
+    if (buffer.byteLength > 5 * 1024 * 1024) {
+      return null;
+    }
+
+    // Generate filename
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+    const filePath = `media/${fileName}`;
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('x-autoposter')
+      .upload(filePath, buffer, { contentType: 'image/jpeg' });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      return null;
+    }
+
+    // Record in media_library
+    const { data, error: dbError } = await supabase
+      .from('media_library')
+      .insert([{
+        file_path: filePath,
+        file_name: fileName,
+        file_size: buffer.byteLength,
+        mime_type: contentType,
+        description: `Extracted from: ${imageUrl}`,
+      }])
+      .select('id')
+      .single();
+
+    if (dbError) {
+      console.error('Database insert error:', dbError);
+      return null;
+    }
+
+    return data?.id || null;
+  } catch (error) {
+    console.error('Image download/upload error:', error);
+    return null;
+  }
+}
+
 async function getSelectedModel(): Promise<string> {
   // Always use Claude Haiku for link analysis - best tweet quality
   return 'anthropic/claude-haiku-4.5';
@@ -34,28 +98,35 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
   const twitterMatch = html.match(/<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i);
   if (twitterMatch && !images.includes(twitterMatch[1])) images.push(twitterMatch[1]);
 
-  // Extract main img tags (first 3)
+  // Extract all img tags (up to 10, filter out bad ones)
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
   let match;
-  let imgCount = 0;
-  while ((match = imgRegex.exec(html)) && imgCount < 3) {
+  while ((match = imgRegex.exec(html)) && images.length < 10) {
     let imgUrl = match[1];
     // Handle relative URLs
     if (!imgUrl.startsWith('http')) {
       try {
-        const urlObj = new URL(baseUrl);
         imgUrl = new URL(imgUrl, baseUrl).href;
       } catch (e) {
         continue;
       }
     }
-    if (!images.includes(imgUrl) && !imgUrl.includes('logo') && !imgUrl.includes('favicon')) {
+
+    // Skip common junk: logos, favicons, small tracking pixels, ads
+    const isJunk = imgUrl.includes('logo') ||
+                   imgUrl.includes('favicon') ||
+                   imgUrl.includes('tracking') ||
+                   imgUrl.includes('ad') ||
+                   imgUrl.includes('pixel') ||
+                   imgUrl.includes('1x1') ||
+                   imgUrl.includes('spacer');
+
+    if (!images.includes(imgUrl) && !isJunk) {
       images.push(imgUrl);
-      imgCount++;
     }
   }
 
-  return images.slice(0, 3); // Return top 3 images
+  return images.slice(0, 8); // Return up to 8 images
 }
 
 async function fetchWebContent(url: string): Promise<{ text: string; images: string[] }> {
@@ -105,19 +176,16 @@ async function generateContentSummary(content: string, url: string): Promise<str
     throw new Error('No LLM API key configured');
   }
 
-  const prompt = `You are a technical writer. Read this content and create a 2-3 paragraph summary that captures the essence.
+  const prompt = `Read this and give me a quick breakdown. No fluff, just the good stuff.
 
-Requirements for your summary:
-- Paragraph 1: What is this about? What's the main idea/problem/concept?
-- Paragraph 2: Why does this matter? What's the impact, benefit, or significance?
-- Paragraph 3 (optional): What are the key takeaways or next steps readers should consider?
+What's it actually about? What's the main thing? Why should I care? Any specific takeaways?
 
-Be specific and actionable. Avoid vague language or marketing speak. Focus on substance over fluff.
+Keep it conversational and direct. Think like you're explaining it to a friend over coffee - be real, be specific, skip the marketing BS.
 
 Content:
 ${content}
 
-Write 2-3 solid paragraphs. Make it readable and engaging.`;
+Just write it naturally. 2-3 short paragraphs. Don't overthink it.`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -234,6 +302,12 @@ export async function POST(req: Request) {
     const { text, images } = await fetchWebContent(url);
     console.log(`[analyze-link] Fetched ${text.length} characters of content and ${images.length} images`);
 
+    // Upload images to media gallery (in parallel)
+    const uploadPromises = images.slice(0, 8).map(img => downloadAndUploadImage(img));
+    const uploadedImageIds = await Promise.all(uploadPromises);
+    const savedImages = uploadedImageIds.filter(id => id !== null);
+    console.log(`[analyze-link] Saved ${savedImages.length} images to media gallery`);
+
     // Generate content summary
     const content_summary = await generateContentSummary(text, url);
     console.log(`[analyze-link] Generated summary`);
@@ -247,7 +321,8 @@ export async function POST(req: Request) {
       url,
       content_summary,
       tweets,
-      images: images.slice(0, 3), // Return top 3 images
+      images: images.slice(0, 3), // Return top 3 images for display
+      saved_image_ids: savedImages, // IDs of saved images in media_library
     });
   } catch (error: any) {
     console.error('[analyze-link] Error:', error);
