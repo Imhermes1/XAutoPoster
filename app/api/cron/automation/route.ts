@@ -332,7 +332,15 @@ async function runAutomation(request: NextRequest) {
 
     // 0.75. Generate tweets from analyzed candidates (from candidates table)
     try {
-      console.log('[automation] Generating tweets from analyzed candidates...');
+      console.log('[automation] Step 0.75: Generating tweets from analyzed candidates...');
+
+      await logActivity({
+        category: 'system',
+        severity: 'info',
+        title: 'Starting Tweet Generation',
+        description: 'Checking for analyzed candidates to generate tweets from',
+        automation_run_id: automationRunId || undefined,
+      });
 
       // Get candidates that have been analyzed but not yet generated
       const { data: candidates, error: candidatesError } = await supabase
@@ -342,6 +350,21 @@ async function runAutomation(request: NextRequest) {
         .is('generated_at', null)
         .order('analysis_score', { ascending: false })
         .limit(5); // Generate up to 5 per cycle
+
+      console.log('[automation] Candidates query result:', {
+        found: candidates?.length || 0,
+        error: candidatesError?.message || 'none'
+      });
+
+      if (candidatesError) {
+        await logActivity({
+          category: 'system',
+          severity: 'error',
+          title: 'Failed to Query Candidates',
+          description: `Error querying candidates: ${candidatesError.message}`,
+          automation_run_id: automationRunId || undefined,
+        });
+      }
 
       if (!candidatesError && candidates && candidates.length > 0) {
         console.log(`[automation] Found ${candidates.length} candidates to generate`);
@@ -407,9 +430,25 @@ async function runAutomation(request: NextRequest) {
             metadata: { generated_count: generated }
           });
         }
+      } else if (!candidatesError) {
+        console.log('[automation] No candidates found that need generation');
+        await logActivity({
+          category: 'system',
+          severity: 'info',
+          title: 'No Candidates to Generate',
+          description: 'No analyzed candidates found that need tweet generation',
+          automation_run_id: automationRunId || undefined,
+        });
       }
     } catch (error) {
       console.error('[automation] Error generating candidate tweets:', error);
+      await logActivity({
+        category: 'system',
+        severity: 'error',
+        title: 'Tweet Generation Error',
+        description: `Error during tweet generation: ${String(error)}`,
+        automation_run_id: automationRunId || undefined,
+      });
     }
 
     // 1. Always process scheduled posts
