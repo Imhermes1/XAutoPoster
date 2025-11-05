@@ -40,6 +40,8 @@ export async function POST(req: Request) {
     await savePostHistory({ text, postedAt: Date.now(), topicId: undefined });
     return NextResponse.json({ success: true, id: result.id });
   } catch (e: any) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    console.error('[post] Error:', e);
+    const errorMessage = e?.message || String(e) || 'Unknown error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
