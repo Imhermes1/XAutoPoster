@@ -97,10 +97,10 @@ export async function POST(request: NextRequest) {
         .from('automation_config')
         .insert([{
           enabled: true,
-          posting_times: ['09:00', '13:00', '18:00'],
+          posting_times: ['09:00', '12:00', '14:00', '16:00', '18:00'],
           timezone: 'Australia/Sydney',
           randomize_minutes: 15,
-          daily_limit: 2,
+          daily_limit: 5,
           llm_provider: 'openrouter',
           ...updates,
         }]);
