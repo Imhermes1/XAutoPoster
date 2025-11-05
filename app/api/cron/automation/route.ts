@@ -189,10 +189,18 @@ async function runAutomation(request: NextRequest) {
 
     // Extract OpenRouter API key from request header if provided by GitHub Actions
     const openrouterKeyFromHeader = request.headers.get('X-OpenRouter-Key');
+    console.log('[automation] X-OpenRouter-Key header check:', {
+      has_header: !!openrouterKeyFromHeader,
+      key_length: openrouterKeyFromHeader?.length || 0,
+      key_preview: openrouterKeyFromHeader ? openrouterKeyFromHeader.substring(0, 10) + '...' : 'NONE'
+    });
+
     if (openrouterKeyFromHeader) {
       console.log('[automation] Using OpenRouter API key from request header');
       // Set it as an environment variable so generatePost can use it
       process.env.OPENROUTER_API_KEY = openrouterKeyFromHeader;
+    } else {
+      console.warn('[automation] No OpenRouter API key in header - will fall back to Supabase config');
     }
 
     // Start automation logging
@@ -522,6 +530,22 @@ async function runAutomation(request: NextRequest) {
             automation_run_id: automationRunId || undefined,
             metadata: { generated_count: generated }
           });
+        } else {
+          console.warn(`[automation] No tweets generated. Attempted ${candidates.length} candidates. Errors: ${generationErrors.length}`);
+          if (generationErrors.length > 0) {
+            console.warn('[automation] Generation errors:', generationErrors);
+            await logActivity({
+              category: 'system',
+              severity: 'warning',
+              title: 'Generation Attempted But Failed',
+              description: `Attempted to generate ${candidates.length} tweets but all failed`,
+              automation_run_id: automationRunId || undefined,
+              metadata: {
+                attempted: candidates.length,
+                errors: generationErrors.slice(0, 3) // Log first 3 errors
+              }
+            });
+          }
         }
       } else if (!candidatesError) {
         console.log('[automation] No candidates found that need generation');
