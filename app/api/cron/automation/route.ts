@@ -243,6 +243,92 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // 0.5. Schedule any unscheduled draft posts
+    try {
+      console.log('[automation] Scheduling unscheduled draft posts...');
+
+      // Get automation config for posting times
+      const config = await getAutomationConfig();
+      if (!config) {
+        console.log('[automation] No automation config found, skipping draft scheduling');
+      } else {
+        const postingTimes: string[] = config.posting_times || [
+          '08:00', '10:00', '12:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'
+        ];
+        const timezone = config.timezone || 'Australia/Sydney';
+
+        // Get unscheduled drafts
+        const { data: drafts, error: draftsError } = await supabase
+          .from('bulk_post_queue')
+          .select('id, created_at, batch_id')
+          .eq('status', 'draft')
+          .is('scheduled_for', null)
+          .order('created_at', { ascending: true });
+
+        if (!draftsError && drafts && drafts.length > 0) {
+          // Get today's date in the configured timezone
+          const now = new Date();
+          const today = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+          today.setHours(0, 0, 0, 0);
+
+          // Group drafts by batch
+          const batchMap = new Map<string | null, typeof drafts>();
+          for (const draft of drafts) {
+            const batchId = draft.batch_id || 'single';
+            if (!batchMap.has(batchId)) {
+              batchMap.set(batchId, []);
+            }
+            batchMap.get(batchId)!.push(draft);
+          }
+
+          // Schedule drafts across posting times
+          const updates: any[] = [];
+          for (const [batchId, batchDrafts] of batchMap.entries()) {
+            for (let i = 0; i < batchDrafts.length; i++) {
+              const timeIndex = i % postingTimes.length;
+              const postingTime = postingTimes[timeIndex];
+              const [hours, minutes] = postingTime.split(':').map(Number);
+
+              const scheduledDate = new Date(today);
+              scheduledDate.setHours(hours, minutes, 0, 0);
+
+              // If time has passed today, schedule for tomorrow
+              if (scheduledDate < now) {
+                scheduledDate.setDate(scheduledDate.getDate() + 1);
+              }
+
+              updates.push({
+                id: batchDrafts[i].id,
+                scheduled_for: scheduledDate.toISOString(),
+                status: 'pending'
+              });
+            }
+          }
+
+          // Update all drafts to pending
+          if (updates.length > 0) {
+            const { error: updateError } = await supabase
+              .from('bulk_post_queue')
+              .upsert(updates, { onConflict: 'id' });
+
+            if (!updateError) {
+              console.log(`[automation] Scheduled ${updates.length} draft posts`);
+              await logActivity({
+                category: 'system',
+                severity: 'success',
+                title: 'Draft Posts Scheduled',
+                description: `Automatically scheduled ${updates.length} draft posts`,
+                automation_run_id: automationRunId || undefined,
+                metadata: { scheduled_count: updates.length, posting_times: postingTimes }
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[automation] Error scheduling drafts:', error);
+    }
+
     // 1. Always process scheduled posts
     try {
       console.log('[automation] Processing scheduled posts...');

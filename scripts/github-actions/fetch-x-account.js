@@ -32,10 +32,15 @@ async function fetchUserTweets(userId) {
       },
     };
 
+    console.log(`Calling X API for user ${userId}`);
     https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => (data += chunk));
       res.on('end', () => {
+        console.log(`X API response status: ${res.statusCode}`);
+        if (res.statusCode !== 200) {
+          console.error(`X API error response:`, data);
+        }
         try {
           resolve(JSON.parse(data));
         } catch (e) {
