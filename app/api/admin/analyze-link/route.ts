@@ -59,6 +59,48 @@ async function fetchWebContent(url: string): Promise<string> {
   }
 }
 
+async function generateContentSummary(content: string, url: string): Promise<string> {
+  const apiKey = await getApiKey();
+  const model = await getSelectedModel();
+
+  if (!apiKey) {
+    throw new Error('No LLM API key configured');
+  }
+
+  const prompt = `Read this web content and write a 1-2 sentence summary that captures the core idea or main value proposition. Be specific and concrete, not generic.
+
+Content from ${url}:
+${content}
+
+Write ONLY the summary, no other text.`;
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 150,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`LLM API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
 async function generateTweetIdeas(content: string, url: string): Promise<string[]> {
   const apiKey = await getApiKey();
   const model = await getSelectedModel();
@@ -145,6 +187,10 @@ export async function POST(req: Request) {
     const content = await fetchWebContent(url);
     console.log(`[analyze-link] Fetched ${content.length} characters of content`);
 
+    // Generate content summary
+    const content_summary = await generateContentSummary(content, url);
+    console.log(`[analyze-link] Generated summary`);
+
     // Generate tweet ideas
     const tweets = await generateTweetIdeas(content, url);
     console.log(`[analyze-link] Generated ${tweets.length} tweet ideas`);
@@ -152,7 +198,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       url,
-      content_summary: content.substring(0, 500),
+      content_summary,
       tweets,
     });
   } catch (error: any) {

@@ -175,10 +175,10 @@ export default function LinkAnalyzer() {
       {contentSummary && (
         <div style={cardStyle}>
           <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 16, fontWeight: 700 }}>
-            Content Summary
+            What It's About
           </h3>
-          <p style={{ fontSize: 13, color: colors.gray[600], lineHeight: 1.6, margin: 0 }}>
-            {contentSummary}...
+          <p style={{ fontSize: 14, color: colors.gray[700], lineHeight: 1.6, margin: 0 }}>
+            {contentSummary}
           </p>
           <p style={{ fontSize: 12, color: colors.gray[500], marginTop: 12, marginBottom: 0 }}>
             Source: <a href={analyzedUrl} target="_blank" rel="noopener noreferrer" style={{ color: colors.primary, textDecoration: 'none' }}>
