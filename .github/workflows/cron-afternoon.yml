@@ -1,0 +1,22 @@
+name: Afternoon Automation Cron (2 PM UTC)
+
+on:
+  schedule:
+    # Run every day at 14:00 UTC (2 PM)
+    # This is 12:00 AM AEDT (UTC+11) or 1:00 AM AEST (UTC+10)
+    - cron: '0 14 * * *'
+
+jobs:
+  trigger-automation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger afternoon automation cron
+        env:
+          AUTOMATION_URL: ${{ secrets.VERCEL_DEPLOYMENT_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            "$AUTOMATION_URL/api/cron/automation"
+        if: env.AUTOMATION_URL != '' && env.CRON_SECRET != ''
