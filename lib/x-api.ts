@@ -98,6 +98,13 @@ function generateOAuthHeader(
 type PostResponse = { success: boolean; id?: string; error?: string };
 
 async function getOAuth2Bearer(): Promise<string | null> {
+  // First, try to use the Bearer Token from environment (X_BEARER_TOKEN)
+  // This is the OAuth 2.0 Bearer Token for reading user timelines
+  const envBearer = process.env.X_BEARER_TOKEN;
+  if (envBearer) {
+    return envBearer;
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
