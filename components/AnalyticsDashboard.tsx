@@ -31,7 +31,7 @@ export default function AnalyticsDashboard() {
   const { showToast } = useToast();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'posted' | 'scheduled' | 'failed'>('all');
+  const [filter, setFilter] = useState<'all' | 'success' | 'error' | 'warning'>('all');
 
   useEffect(() => {
     fetchAnalytics();
@@ -52,11 +52,11 @@ export default function AnalyticsDashboard() {
       const activity = await activityRes.json();
 
       // Calculate stats
-      const posts = activity.activity || [];
+      const posts = activity.activities || activity.activity || [];
       const stats = {
-        totalPosted: posts.filter((p: any) => p.status === 'posted').length,
-        totalScheduled: posts.filter((p: any) => p.status === 'scheduled').length,
-        totalFailed: posts.filter((p: any) => p.status === 'failed').length,
+        totalPosted: posts.filter((p: any) => p.category === 'posting' && p.severity === 'success').length,
+        totalScheduled: posts.filter((p: any) => p.category === 'posting').length,
+        totalFailed: posts.filter((p: any) => p.severity === 'error').length,
         averageScore: posts.length
           ? Math.round(
               posts.filter((p: any) => p.metadata?.score).reduce((sum: number, p: any) => sum + (p.metadata?.score || 0), 0) /
@@ -102,7 +102,7 @@ export default function AnalyticsDashboard() {
 
   const filteredActivity = data?.activityStream.filter((item) => {
     if (filter === 'all') return true;
-    return item.status === filter || item.event_type === filter;
+    return (item as any).severity === filter;
   }) || [];
 
   return (
@@ -286,7 +286,7 @@ export default function AnalyticsDashboard() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Activity Log</h3>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['all', 'posted', 'scheduled', 'failed'] as const).map((f) => (
+            {(['all', 'success', 'error', 'warning'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -329,11 +329,11 @@ export default function AnalyticsDashboard() {
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: colors.gray[900], marginBottom: 4 }}>
-                    {item.event_type || item.status}
+                    {(item as any).title || item.event_type || 'Activity'}
                   </div>
-                  {item.post_text && (
+                  {(item as any).description && (
                     <div style={{ fontSize: 12, color: colors.gray[600], marginBottom: 4, maxHeight: '40px', overflow: 'hidden' }}>
-                      {item.post_text.substring(0, 100)}...
+                      {(item as any).description.substring(0, 100)}
                     </div>
                   )}
                   <div style={{ fontSize: 11, color: colors.gray[500] }}>
@@ -347,22 +347,22 @@ export default function AnalyticsDashboard() {
                     fontSize: 11,
                     fontWeight: 600,
                     backgroundColor:
-                      item.status === 'posted'
+                      (item as any).severity === 'success'
                         ? '#dcfce7'
-                        : item.status === 'failed'
+                        : (item as any).severity === 'error'
                           ? '#fee2e2'
                           : '#fef3c7',
                     color:
-                      item.status === 'posted'
+                      (item as any).severity === 'success'
                         ? colors.success
-                        : item.status === 'failed'
+                        : (item as any).severity === 'error'
                           ? colors.danger
                           : colors.warning,
                     minWidth: '70px',
                     textAlign: 'center',
                   }}
                 >
-                  {item.status || 'active'}
+                  {(item as any).severity || 'info'}
                 </div>
               </div>
             ))}
