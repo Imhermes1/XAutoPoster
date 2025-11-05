@@ -9,15 +9,17 @@ const supabase = createClient(
 async function getSelectedModel(): Promise<string> {
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return 'google/gemini-2.0-flash-exp:free';
+      // Use Claude Haiku for link analysis - much better tweet quality
+      return 'anthropic/claude-haiku-4.5-20250901';
     }
     const { data } = await supabase
       .from('automation_config')
       .select('llm_model')
       .single();
-    return data?.llm_model || 'google/gemini-2.0-flash-exp:free';
+    // For link analysis, always use Claude Haiku regardless of config
+    return 'anthropic/claude-haiku-4.5-20250901';
   } catch {
-    return 'google/gemini-2.0-flash-exp:free';
+    return 'anthropic/claude-haiku-4.5-20250901';
   }
 }
 
