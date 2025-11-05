@@ -298,7 +298,7 @@ export async function GET(request: NextRequest) {
 
       if (config && config.enabled && config.posting_times) {
         // Convert current UTC time to the configured timezone
-        const timeZone = config.timezone || 'UTC';
+        const timeZone = config.timezone || 'Australia/Sydney';
         const localTime = now.toLocaleString('en-US', { timeZone, hour12: false, hour: '2-digit', minute: '2-digit' });
         const [currentHour, currentMinute] = localTime.split(':').map(Number);
 
