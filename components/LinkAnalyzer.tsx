@@ -241,19 +241,30 @@ export default function LinkAnalyzer() {
             Ready to Post ({tweets.length})
           </h3>
 
-          {tweets.map((tweet, idx) => (
+          {tweets.map((tweet, idx) => {
+            const isThread = tweet.startsWith('🧵');
+            const displayTweet = isThread ? tweet.substring(1).trim() : tweet;
+
+            return (
             <div key={idx} style={tweetCardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: colors.gray[500] }}>
-                  Tweet {idx + 1} • {tweet.length} chars
-                </span>
+                <div>
+                  <span style={{ fontSize: 11, color: colors.gray[500] }}>
+                    Tweet {idx + 1} • {displayTweet.length} chars
+                  </span>
+                  {isThread && (
+                    <span style={{ fontSize: 10, color: colors.warning, marginLeft: 8, fontWeight: 600 }}>
+                      🧵 Thread Post
+                    </span>
+                  )}
+                </div>
               </div>
               <p style={tweetTextStyle}>
-                {tweet}
+                {displayTweet}
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  onClick={() => postTweet(idx, tweet)}
+                  onClick={() => postTweet(idx, displayTweet)}
                   disabled={posting === idx}
                   style={{
                     padding: '8px 16px',
@@ -272,7 +283,7 @@ export default function LinkAnalyzer() {
                 </button>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(tweet);
+                    navigator.clipboard.writeText(displayTweet);
                     showToast('success', 'Copied', 'Tweet copied to clipboard');
                   }}
                   style={{
@@ -291,7 +302,8 @@ export default function LinkAnalyzer() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

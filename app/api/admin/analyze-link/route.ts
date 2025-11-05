@@ -112,25 +112,27 @@ async function generateTweetIdeas(content: string, url: string): Promise<string[
     throw new Error('No LLM API key configured');
   }
 
-  const prompt = `You are a legendary tech Twitter user. Create 3 tweets people actually WANT to engage with.
+  const prompt = `You are a legendary tech Twitter user known for threads that people actually read. Create 3 great tweet options.
 
-Rules:
-1. Each tweet is standalone, not part of a thread
+CRITICAL RULES:
+1. Each tweet can be part of a thread (use 🧵 marker if it is)
 2. Include the link: ${url}
-3. No hashtags, no emoji, no "fun fact" or "pro tip" language
-4. No AI-speak. Sound like a real person sharing something valuable
-5. Each tweet should make someone stop scrolling because it's genuinely interesting
-6. Avoid generic statements - be specific
-7. Under 280 chars each
+3. No hashtags, no emoji in the text itself (only use 🧵 for thread indicator)
+4. No AI-speak. Sound like a real person - conversational, smart, direct
+5. Make them ENGAGING - tell a story, include a specific example, or reveal something surprising
+6. Avoid generic statements - be specific about the "why it matters"
+7. Can exceed 280 chars if it's part of a compelling thread (we'll handle threading on our end)
+8. Lead with the hook - first sentence should make someone STOP SCROLLING
+9. Use real examples, data, or scenarios where possible
 
 The content to base tweets on:
 ${content}
 
-Generate 3 tweets as JSON:
+Generate 3 different tweet options (varied approaches - one educational, one practical, one builder-focused):
 [
-  { "tweet": "tweet text with link" },
-  { "tweet": "tweet text with link" },
-  { "tweet": "tweet text with link" }
+  { "tweet": "tweet text with link, use 🧵 at start if it's a thread tweet" },
+  { "tweet": "tweet text with link, use 🧵 at start if it's a thread tweet" },
+  { "tweet": "tweet text with link, use 🧵 at start if it's a thread tweet" }
 ]
 
 Only output the JSON array.`;
