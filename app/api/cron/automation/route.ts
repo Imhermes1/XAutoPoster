@@ -496,8 +496,13 @@ async function runAutomation(request: NextRequest) {
                     }
                   });
                 } else {
-                  console.error(`[automation] Failed to add to queue:`, queueError);
-                  generationErrors.push(`Failed to queue tweet for ${candidate.id}: ${queueError.message}`);
+                  console.error(`[automation] Failed to add to queue:`, {
+                    error: queueError.message,
+                    code: queueError.code,
+                    details: queueError.details,
+                    hint: queueError.hint
+                  });
+                  generationErrors.push(`Failed to queue tweet for ${candidate.id}: ${queueError.message || JSON.stringify(queueError)}`);
                 }
               } else {
                 console.error(`[automation] Failed to mark candidate as used:`, updateError);
