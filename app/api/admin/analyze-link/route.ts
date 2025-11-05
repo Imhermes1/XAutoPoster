@@ -23,7 +23,42 @@ async function getApiKey(): Promise<string> {
   }
 }
 
-async function fetchWebContent(url: string): Promise<string> {
+async function extractImages(html: string, baseUrl: string): Promise<string[]> {
+  const images: string[] = [];
+
+  // Extract og:image (Open Graph - most reliable)
+  const ogMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
+  if (ogMatch) images.push(ogMatch[1]);
+
+  // Extract twitter:image
+  const twitterMatch = html.match(/<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i);
+  if (twitterMatch && !images.includes(twitterMatch[1])) images.push(twitterMatch[1]);
+
+  // Extract main img tags (first 3)
+  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let match;
+  let imgCount = 0;
+  while ((match = imgRegex.exec(html)) && imgCount < 3) {
+    let imgUrl = match[1];
+    // Handle relative URLs
+    if (!imgUrl.startsWith('http')) {
+      try {
+        const urlObj = new URL(baseUrl);
+        imgUrl = new URL(imgUrl, baseUrl).href;
+      } catch (e) {
+        continue;
+      }
+    }
+    if (!images.includes(imgUrl) && !imgUrl.includes('logo') && !imgUrl.includes('favicon')) {
+      images.push(imgUrl);
+      imgCount++;
+    }
+  }
+
+  return images.slice(0, 3); // Return top 3 images
+}
+
+async function fetchWebContent(url: string): Promise<{ text: string; images: string[] }> {
   try {
     const response = await fetch(url, {
       headers: {
@@ -34,6 +69,9 @@ async function fetchWebContent(url: string): Promise<string> {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const html = await response.text();
+
+    // Extract images before removing HTML tags
+    const images = await extractImages(html, url);
 
     // Extract main content - remove nav, footer, scripts, styles
     let text = html
@@ -50,7 +88,10 @@ async function fetchWebContent(url: string): Promise<string> {
       .trim();
 
     // Extract roughly the first 2500 chars of meaningful content
-    return text.substring(0, 2500);
+    return {
+      text: text.substring(0, 2500),
+      images: images,
+    };
   } catch (error) {
     throw new Error(`Failed to fetch: ${error}`);
   }
@@ -64,18 +105,19 @@ async function generateContentSummary(content: string, url: string): Promise<str
     throw new Error('No LLM API key configured');
   }
 
-  const prompt = `You are a technical writer. Read this content and write ONE sentence that captures the main idea.
+  const prompt = `You are a technical writer. Read this content and create a 2-3 paragraph summary that captures the essence.
 
-Requirements:
-- Avoid jargon and fluff
-- Be direct and specific
-- Focus on the "why it matters" not "what it is"
-- Under 100 characters if possible
+Requirements for your summary:
+- Paragraph 1: What is this about? What's the main idea/problem/concept?
+- Paragraph 2: Why does this matter? What's the impact, benefit, or significance?
+- Paragraph 3 (optional): What are the key takeaways or next steps readers should consider?
+
+Be specific and actionable. Avoid vague language or marketing speak. Focus on substance over fluff.
 
 Content:
 ${content}
 
-Write ONLY that one sentence, nothing else.`;
+Write 2-3 solid paragraphs. Make it readable and engaging.`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -92,7 +134,7 @@ Write ONLY that one sentence, nothing else.`;
         },
       ],
       temperature: 0.5,
-      max_tokens: 150,
+      max_tokens: 400,
     }),
   });
 
@@ -188,16 +230,16 @@ export async function POST(req: Request) {
 
     console.log(`[analyze-link] Fetching content from: ${url}`);
 
-    // Fetch web content
-    const content = await fetchWebContent(url);
-    console.log(`[analyze-link] Fetched ${content.length} characters of content`);
+    // Fetch web content and images
+    const { text, images } = await fetchWebContent(url);
+    console.log(`[analyze-link] Fetched ${text.length} characters of content and ${images.length} images`);
 
     // Generate content summary
-    const content_summary = await generateContentSummary(content, url);
+    const content_summary = await generateContentSummary(text, url);
     console.log(`[analyze-link] Generated summary`);
 
     // Generate tweet ideas
-    const tweets = await generateTweetIdeas(content, url);
+    const tweets = await generateTweetIdeas(text, url);
     console.log(`[analyze-link] Generated ${tweets.length} tweet ideas`);
 
     return NextResponse.json({
@@ -205,6 +247,7 @@ export async function POST(req: Request) {
       url,
       content_summary,
       tweets,
+      images: images.slice(0, 3), // Return top 3 images
     });
   } catch (error: any) {
     console.error('[analyze-link] Error:', error);

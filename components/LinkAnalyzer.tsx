@@ -12,6 +12,7 @@ export default function LinkAnalyzer() {
   const [tweets, setTweets] = useState<string[]>([]);
   const [contentSummary, setContentSummary] = useState('');
   const [analyzedUrl, setAnalyzedUrl] = useState('');
+  const [images, setImages] = useState<string[]>([]);
   const [activityLog, setActivityLog] = useState<string[]>([]);
 
   const analyzeLink = async () => {
@@ -50,7 +51,9 @@ export default function LinkAnalyzer() {
       }
 
       addLog('✓ Web content fetched');
-      addLog('Generating content summary...');
+      addLog('Extracting images...');
+      addLog('✓ Images extracted');
+      addLog('Generating detailed summary...');
       addLog('✓ Summary generated');
       addLog('Generating tweet ideas...');
       addLog('✓ Generated 3 tweet ideas');
@@ -59,6 +62,7 @@ export default function LinkAnalyzer() {
       setTweets(data.tweets);
       setContentSummary(data.content_summary);
       setAnalyzedUrl(data.url);
+      setImages(data.images || []);
       showToast('success', 'Analyzed', 'Link analyzed successfully!');
     } catch (e: any) {
       console.error('Analyze error:', e);
@@ -291,16 +295,75 @@ export default function LinkAnalyzer() {
       {/* Content Summary */}
       {contentSummary && (
         <div style={cardStyle}>
-          <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 16, fontWeight: 700 }}>
-            What It's About
+          <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 16, fontWeight: 700 }}>
+            Summary
           </h3>
-          <p style={{ fontSize: 14, color: colors.gray[700], lineHeight: 1.6, margin: 0 }}>
+          <div style={{ fontSize: 14, color: colors.gray[700], lineHeight: 1.8, whiteSpace: 'pre-wrap', marginBottom: 16 }}>
             {contentSummary}
-          </p>
-          <p style={{ fontSize: 12, color: colors.gray[500], marginTop: 12, marginBottom: 0 }}>
+          </div>
+          <p style={{ fontSize: 12, color: colors.gray[500], marginTop: 0, marginBottom: 0 }}>
             Source: <a href={analyzedUrl} target="_blank" rel="noopener noreferrer" style={{ color: colors.primary, textDecoration: 'none' }}>
               {new URL(analyzedUrl).hostname}
             </a>
+          </p>
+        </div>
+      )}
+
+      {/* Extracted Images */}
+      {images.length > 0 && (
+        <div style={cardStyle}>
+          <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 16, fontWeight: 700 }}>
+            Images ({images.length})
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            {images.map((imageUrl, idx) => (
+              <div key={idx} style={{ position: 'relative' }}>
+                <img
+                  src={imageUrl}
+                  alt={`Extracted image ${idx + 1}`}
+                  style={{
+                    width: '100%',
+                    height: 150,
+                    objectFit: 'cover',
+                    borderRadius: 8,
+                    border: `1px solid ${colors.gray[200]}`,
+                    backgroundColor: colors.gray[50],
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <a
+                  href={imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                    fontSize: 10,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+                  }}
+                >
+                  View
+                </a>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: colors.gray[500], marginTop: 12, marginBottom: 0 }}>
+            Tip: You can attach these images when posting tweets
           </p>
         </div>
       )}

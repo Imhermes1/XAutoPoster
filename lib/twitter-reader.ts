@@ -2,6 +2,7 @@ import { oauthFetch } from '@/lib/x-api';
 import { addCandidateIfNew } from '@/lib/candidates';
 import { getSupabase } from '@/lib/supabase';
 import { startIngestionLog, completeIngestionLog, logActivity } from '@/lib/automation-logger';
+import { fetchRecentNews } from '@/lib/rss-fetcher';
 
 export async function resolveUserId(handle: string): Promise<string | null> {
   const username = handle.replace(/^@/, '');
@@ -235,6 +236,72 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
     description: `Processed ${totalFound} items: ${inserted} new, ${duplicates} duplicates`,
     metadata: { totalFound, inserted, duplicates },
   });
+
+  return { inserted };
+}
+
+export async function ingestFromRSSFeeds(): Promise<{ inserted: number }> {
+  const supabase = getSupabase();
+  let inserted = 0;
+  let totalFound = 0;
+  let duplicates = 0;
+
+  const logId = await startIngestionLog({
+    source_type: 'rss',
+    source_id: 'batch',
+    source_identifier: 'RSS Feeds',
+  });
+
+  try {
+    // Fetch recent news from all configured RSS feeds
+    const newsItems = await fetchRecentNews();
+    totalFound = newsItems.length;
+    console.log(`[ingestFromRSSFeeds] Fetched ${totalFound} items from RSS feeds`);
+
+    if (totalFound === 0) {
+      await completeIngestionLog(logId!, {
+        status: 'completed',
+        items_found: 0,
+        items_new: 0,
+        items_duplicate: 0,
+      });
+      return { inserted };
+    }
+
+    // Add each item as a candidate if it's new
+    for (const item of newsItems) {
+      const result = await addCandidateIfNew({
+        type: 'rss',
+        source: item.source,
+        external_id: item.link, // Use URL as unique identifier
+        url: item.link,
+        title: item.title,
+        text: item.contentSnippet || '',
+        image_url: item.imageUrl,
+      });
+
+      if (result) {
+        inserted++;
+      } else {
+        duplicates++;
+      }
+    }
+
+    console.log(`[ingestFromRSSFeeds] Added ${inserted} new items, ${duplicates} duplicates`);
+
+    await completeIngestionLog(logId!, {
+      status: 'completed',
+      items_found: totalFound,
+      items_new: inserted,
+      items_duplicate: duplicates,
+    });
+  } catch (error: any) {
+    console.error('[ingestFromRSSFeeds] Error:', error);
+    await completeIngestionLog(logId!, {
+      status: 'failed',
+      error_message: error.message,
+    });
+  }
 
   return { inserted };
 }

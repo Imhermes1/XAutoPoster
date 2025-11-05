@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { postToX, postToXAdvanced } from '@/lib/x-api';
 import { savePostHistory, getLastPostTime } from '@/lib/kv-storage';
-import { ingestFromAccountsAndKeywords } from '@/lib/twitter-reader';
+import { ingestFromAccountsAndKeywords, ingestFromRSSFeeds } from '@/lib/twitter-reader';
 import { fetchRecentNews } from '@/lib/rss-fetcher';
 
 const supabase = createClient(
@@ -186,9 +186,21 @@ export async function GET(request: NextRequest) {
     // 0. Ingest from sources (X accounts, keywords, RSS feeds)
     try {
       console.log('[automation] Running ingestion from sources...');
-      const ingestionResult = await ingestFromAccountsAndKeywords();
-      console.log('[automation] Ingestion complete:', ingestionResult);
-      results.ingestion = ingestionResult;
+
+      // Run X accounts and keywords ingestion (24hr cooldown per source)
+      const xIngestionResult = await ingestFromAccountsAndKeywords();
+      console.log('[automation] X sources ingestion complete:', xIngestionResult);
+
+      // Run RSS feed ingestion (no cooldown - free to fetch multiple times daily)
+      const rssIngestionResult = await ingestFromRSSFeeds();
+      console.log('[automation] RSS ingestion complete:', rssIngestionResult);
+
+      // Combine results
+      results.ingestion = {
+        x_sources: xIngestionResult,
+        rss: rssIngestionResult,
+        total_inserted: (xIngestionResult.inserted || 0) + (rssIngestionResult.inserted || 0),
+      };
     } catch (error) {
       console.error('[automation] Ingestion failed:', error);
       results.ingestion = { error: 'Ingestion failed', details: String(error) };
