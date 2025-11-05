@@ -137,9 +137,6 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
 
       totalFound += tweets.length;
 
-      // Update last_fetched_at timestamp for account
-      await supabase.from('sources_accounts').update({ last_fetched_at: new Date().toISOString() }).eq('id', acc.id);
-
       await completeIngestionLog(logId!, {
         status: 'completed',
         items_found: tweets.length,
@@ -151,6 +148,9 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
         status: 'failed',
         error_message: error.message,
       });
+    } finally {
+      // Always update last_fetched_at timestamp (even on failure) to throttle API calls
+      await supabase.from('sources_accounts').update({ last_fetched_at: new Date().toISOString() }).eq('id', acc.id);
     }
   }
 
@@ -211,9 +211,6 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
 
       totalFound += tweets.length;
 
-      // Update last_fetched_at timestamp for keyword
-      await supabase.from('sources_keywords').update({ last_fetched_at: new Date().toISOString() }).eq('id', kw.id);
-
       await completeIngestionLog(logId!, {
         status: 'completed',
         items_found: tweets.length,
@@ -225,6 +222,9 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
         status: 'failed',
         error_message: error.message,
       });
+    } finally {
+      // Always update last_fetched_at timestamp (even on failure) to throttle API calls
+      await supabase.from('sources_keywords').update({ last_fetched_at: new Date().toISOString() }).eq('id', kw.id);
     }
   }
 
