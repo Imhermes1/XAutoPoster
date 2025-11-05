@@ -87,7 +87,16 @@ export default function LinkAnalyzer() {
       showToast('success', 'Posted', `Tweet posted to X! ID: ${data.id}`);
     } catch (e: any) {
       console.error('Post error:', e);
-      const errorMessage = e.message || 'Unknown error posting tweet';
+      let errorMessage = 'Unknown error posting tweet';
+
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      } else if (typeof e === 'string') {
+        errorMessage = e;
+      } else if (typeof e === 'object' && e !== null) {
+        errorMessage = JSON.stringify(e);
+      }
+
       showToast('error', 'Post Failed', errorMessage);
     } finally {
       setPosting(null);
