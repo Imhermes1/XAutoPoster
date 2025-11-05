@@ -99,27 +99,80 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
   if (twitterMatch && !images.includes(twitterMatch[1])) images.push(twitterMatch[1]);
 
   // Extract all img tags - collect more candidates, filter aggressively later
-  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  const imgRegex = /<img[^>]*>/gi;
   const candidates: string[] = [];
   let match;
-  while ((match = imgRegex.exec(html)) && candidates.length < 50) {
-    let imgUrl = match[1];
-    // Handle relative URLs
-    if (!imgUrl.startsWith('http')) {
-      try {
-        imgUrl = new URL(imgUrl, baseUrl).href;
-      } catch (e) {
-        continue;
+
+  // Extract from picture elements (modern responsive images)
+  const pictureRegex = /<picture[^>]*>([\s\S]*?)<\/picture>/gi;
+  let pictureMatch;
+  while ((pictureMatch = pictureRegex.exec(html))) {
+    const pictureContent = pictureMatch[1];
+    // Look for img tag inside picture
+    const imgInPicture = pictureContent.match(/<img[^>]*>/i);
+    if (imgInPicture) {
+      const srcMatch = imgInPicture[0].match(/src=["']([^"']+)["']/i);
+      if (srcMatch) {
+        let imgUrl = srcMatch[1];
+        if (!imgUrl.startsWith('http')) {
+          try {
+            imgUrl = new URL(imgUrl, baseUrl).href;
+          } catch (e) {
+            continue;
+          }
+        }
+        if (!candidates.includes(imgUrl)) {
+          candidates.push(imgUrl);
+        }
       }
     }
-    if (!candidates.includes(imgUrl)) {
-      candidates.push(imgUrl);
+  }
+  while ((match = imgRegex.exec(html)) && candidates.length < 100) {
+    const imgTag = match[0];
+
+    // Try src attribute first
+    let srcMatch = imgTag.match(/src=["']([^"']+)["']/i);
+    if (srcMatch) {
+      let imgUrl = srcMatch[1];
+      if (!imgUrl.startsWith('http')) {
+        try {
+          imgUrl = new URL(imgUrl, baseUrl).href;
+        } catch (e) {
+          continue;
+        }
+      }
+      if (!candidates.includes(imgUrl)) {
+        candidates.push(imgUrl);
+      }
+    }
+
+    // Also try srcset (modern images often use srcset)
+    let srcsetMatch = imgTag.match(/srcset=["']([^"']+)["']/i);
+    if (srcsetMatch) {
+      // srcset format: "url1 1x, url2 2x" or "url1 100w, url2 200w"
+      const srcsetUrls = srcsetMatch[1].split(',').map(s => s.trim().split(/\s+/)[0]);
+      for (const url of srcsetUrls) {
+        if (url && url.startsWith('http')) {
+          if (!candidates.includes(url)) {
+            candidates.push(url);
+          }
+        } else if (url) {
+          try {
+            const fullUrl = new URL(url, baseUrl).href;
+            if (!candidates.includes(fullUrl)) {
+              candidates.push(fullUrl);
+            }
+          } catch (e) {
+            // skip invalid URLs
+          }
+        }
+      }
     }
   }
 
   // Filter candidates - remove junk images
   for (const imgUrl of candidates) {
-    if (images.length >= 8) break; // Stop at 8
+    if (images.length >= 12) break; // Increased to 12 before filtering
 
     // Skip common junk patterns
     const urlLower = imgUrl.toLowerCase();
@@ -135,7 +188,8 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
                    urlLower.includes('spinner') ||
                    urlLower.includes('loading') ||
                    urlLower.includes('dot.gif') ||
-                   // Skip tiny tracking images (common size patterns)
+                   urlLower.includes('.svg') ||  // Often icons/logos
+                   // Skip tiny tracking images
                    (urlLower.includes('pixel') && (
                      imgUrl.includes('1x1') ||
                      imgUrl.includes('2x2') ||
