@@ -1,0 +1,32 @@
+name: Fetch X Accounts (Staggered)
+
+on:
+  schedule:
+    # 9:00 AM UTC
+    - cron: '0 9 * * *'
+    # 9:16 AM UTC
+    - cron: '16 9 * * *'
+    # 9:32 AM UTC
+    - cron: '32 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Fetch X accounts and send to Supabase
+        env:
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/github-actions/fetch-x-account.js
