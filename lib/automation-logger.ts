@@ -474,7 +474,7 @@ export async function getContentAnalysisLogs(candidateId?: string, limit: number
     const supabase = getSupabase();
     let query = supabase
       .from('content_analysis_logs')
-      .select('*, candidates(title, text, source)')
+      .select('*')
       .order('analyzed_at', { ascending: false })
       .limit(limit);
 
