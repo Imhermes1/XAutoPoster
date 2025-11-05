@@ -175,7 +175,7 @@ async function processScheduledPosts() {
  * This consolidates /api/cron/post and /api/cron/process-scheduled into one endpoint
  * to work within Vercel's free tier limit of 1 cron job.
  */
-export async function GET(request: NextRequest) {
+async function runAutomation(request: NextRequest) {
   let automationRunId: string | null = null;
 
   try {
@@ -565,4 +565,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Export both GET and POST handlers
+export async function GET(request: NextRequest) {
+  return runAutomation(request);
+}
+
+export async function POST(request: NextRequest) {
+  return runAutomation(request);
 }
