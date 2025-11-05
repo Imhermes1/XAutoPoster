@@ -350,9 +350,34 @@ async function runAutomation(request: NextRequest) {
         .order('overall_score', { ascending: false, nullsFirst: false })
         .limit(5); // Generate up to 5 per cycle
 
+      // Get total count for debugging
+      const { count: totalCandidates } = await supabase
+        .from('candidates')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: unusedCandidates } = await supabase
+        .from('candidates')
+        .select('*', { count: 'exact', head: true })
+        .eq('used', false);
+
       console.log('[automation] Candidates query result:', {
         found: candidates?.length || 0,
-        error: candidatesError?.message || 'none'
+        error: candidatesError?.message || 'none',
+        totalInDB: totalCandidates || 0,
+        unusedInDB: unusedCandidates || 0,
+      });
+
+      await logActivity({
+        category: 'system',
+        severity: 'info',
+        title: 'Candidate Query Stats',
+        description: `Found ${candidates?.length || 0} candidates to generate from ${unusedCandidates || 0} unused (${totalCandidates || 0} total)`,
+        automation_run_id: automationRunId || undefined,
+        metadata: {
+          found: candidates?.length || 0,
+          unused: unusedCandidates || 0,
+          total: totalCandidates || 0,
+        }
       });
 
       if (candidatesError) {
