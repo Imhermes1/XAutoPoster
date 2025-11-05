@@ -11,10 +11,12 @@ import { logActivity } from '@/lib/automation-logger';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Allow manual calls without auth, but require auth for automated calls
     const secretHeader = request.headers.get('x-cron-secret');
     const cronSecret = process.env.CRON_SECRET;
 
-    if (cronSecret && secretHeader !== cronSecret) {
+    // Only check auth if CRON_SECRET is set AND header is provided
+    if (cronSecret && secretHeader && secretHeader !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
