@@ -77,14 +77,30 @@ export default function LinkAnalyzer() {
         credentials: 'include',
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        // If response isn't JSON, it might still be successful (200 status)
+        if (res.ok) {
+          showToast('success', 'Posted', 'Tweet posted to X!');
+          return;
+        }
+        throw new Error('Invalid response from server');
+      }
 
-      if (!res.ok || !data.success) {
-        const errorMsg = data.error || data.message || 'Failed to post tweet';
+      if (!res.ok) {
+        const errorMsg = data?.error || data?.message || 'Failed to post tweet';
         throw new Error(errorMsg);
       }
 
-      showToast('success', 'Posted', `Tweet posted to X! ID: ${data.id}`);
+      if (data?.success === false) {
+        throw new Error(data?.error || 'Failed to post tweet');
+      }
+
+      // Success - show ID if available
+      const tweetId = data?.id || 'posted';
+      showToast('success', 'Posted', `Tweet posted to X!`);
     } catch (e: any) {
       console.error('Post error:', e);
       let errorMessage = 'Unknown error posting tweet';
