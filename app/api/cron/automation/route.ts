@@ -6,6 +6,7 @@ import { ingestFromAccountsAndKeywords, ingestFromRSSFeeds } from '@/lib/twitter
 import { fetchRecentNews } from '@/lib/rss-fetcher';
 import { startAutomationRun, completeAutomationRun, logActivity } from '@/lib/automation-logger';
 import { generatePost } from '@/lib/content-generator';
+import { scorePostQuality, getScoreStatistics } from '@/lib/post-quality-scorer';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -463,6 +464,45 @@ async function runAutomation(request: NextRequest) {
             }
 
             if (tweetText) {
+              // QUALITY SCORE: Score the generated tweet
+              const qualityScore = scorePostQuality(tweetText);
+              console.log(`[automation] Tweet quality score for ${candidate.id}:`, {
+                overall: qualityScore.overall,
+                engagement: qualityScore.engagement,
+                virality: qualityScore.virality,
+                contentType: qualityScore.contentType.type,
+                recommendation: qualityScore.recommendation
+              });
+
+              // Auto-delete tweets scoring below 7
+              if (qualityScore.overall < 7) {
+                console.warn(`[automation] Tweet scored ${qualityScore.overall} (< 7 threshold) - SKIPPING`);
+
+                await logActivity({
+                  category: 'system',
+                  severity: 'warning',
+                  title: 'Low-Quality Tweet Rejected',
+                  description: `Tweet scored ${qualityScore.overall}/10 - below quality threshold of 7.0`,
+                  automation_run_id: automationRunId || undefined,
+                  metadata: {
+                    candidate_id: candidate.id,
+                    quality_score: qualityScore.overall,
+                    engagement: qualityScore.engagement,
+                    virality: qualityScore.virality,
+                    content_type: qualityScore.contentType.type,
+                    reasoning: qualityScore.reasoning
+                  }
+                });
+
+                // Still mark candidate as used even though tweet was rejected
+                await supabase
+                  .from('candidates')
+                  .update({ used: true })
+                  .eq('id', candidate.id);
+
+                continue; // Skip to next candidate
+              }
+
               // Mark candidate as used
               const { error: updateError } = await supabase
                 .from('candidates')
@@ -476,22 +516,31 @@ async function runAutomation(request: NextRequest) {
                   .insert({
                     batch_id: generationBatchId, // Batch ID links all posts from this automation run
                     post_text: tweetText,
-                    status: 'draft'
+                    status: 'draft',
+                    quality_score: qualityScore.overall,
+                    engagement_score: qualityScore.engagement,
+                    virality_score: qualityScore.virality,
+                    content_type: qualityScore.contentType.type
                   });
 
                 if (!queueError) {
                   generated++;
-                  console.log(`[automation] Generated tweet for ${candidate.id} and added to queue`);
+                  console.log(`[automation] Generated and ACCEPTED tweet for ${candidate.id} (score: ${qualityScore.overall})`);
 
                   await logActivity({
                     category: 'system',
                     severity: 'success',
-                    title: 'Tweet Generated Successfully',
-                    description: `Generated tweet from candidate ${candidate.id}`,
+                    title: 'Quality Tweet Generated',
+                    description: `Generated tweet from candidate ${candidate.id} (Quality Score: ${qualityScore.overall}/10)`,
                     automation_run_id: automationRunId || undefined,
                     metadata: {
                       candidate_id: candidate.id,
-                      tweet_length: tweetText.length
+                      tweet_length: tweetText.length,
+                      quality_score: qualityScore.overall,
+                      engagement: qualityScore.engagement,
+                      virality: qualityScore.virality,
+                      content_type: qualityScore.contentType.type,
+                      reasoning: qualityScore.reasoning
                     }
                   });
                 } else {
