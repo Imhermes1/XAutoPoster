@@ -342,13 +342,12 @@ async function runAutomation(request: NextRequest) {
         automation_run_id: automationRunId || undefined,
       });
 
-      // Get candidates that have been analyzed but not yet generated
-      const { data: candidates, error: candidatesError } = await supabase
+      // Get candidates that haven't been used yet
+      const { data: candidates, error: candidatesError} = await supabase
         .from('candidates')
-        .select('id, text, analysis_score, source')
-        .not('analysis_score', 'is', null)
-        .is('generated_at', null)
-        .order('analysis_score', { ascending: false })
+        .select('id, text, overall_score, source, type')
+        .eq('used', false)
+        .order('overall_score', { ascending: false, nullsFirst: false })
         .limit(5); // Generate up to 5 per cycle
 
       console.log('[automation] Candidates query result:', {
@@ -384,13 +383,10 @@ async function runAutomation(request: NextRequest) {
             );
 
             if (tweetText) {
-              // Update candidate as generated
+              // Mark candidate as used
               const { error: updateError } = await supabase
                 .from('candidates')
-                .update({
-                  generated_at: new Date().toISOString(),
-                  generated_text: tweetText
-                })
+                .update({ used: true })
                 .eq('id', candidate.id);
 
               if (!updateError) {
@@ -403,7 +399,8 @@ async function runAutomation(request: NextRequest) {
                     metadata: {
                       candidate_id: candidate.id,
                       source: candidate.source,
-                      analysis_score: candidate.analysis_score
+                      overall_score: candidate.overall_score,
+                      type: candidate.type
                     }
                   });
 
