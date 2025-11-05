@@ -98,10 +98,11 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
   const twitterMatch = html.match(/<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i);
   if (twitterMatch && !images.includes(twitterMatch[1])) images.push(twitterMatch[1]);
 
-  // Extract all img tags (up to 10, filter out bad ones)
+  // Extract all img tags - collect more candidates, filter aggressively later
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  const candidates: string[] = [];
   let match;
-  while ((match = imgRegex.exec(html)) && images.length < 10) {
+  while ((match = imgRegex.exec(html)) && candidates.length < 50) {
     let imgUrl = match[1];
     // Handle relative URLs
     if (!imgUrl.startsWith('http')) {
@@ -111,22 +112,42 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
         continue;
       }
     }
+    if (!candidates.includes(imgUrl)) {
+      candidates.push(imgUrl);
+    }
+  }
 
-    // Skip common junk: logos, favicons, small tracking pixels, ads
-    const isJunk = imgUrl.includes('logo') ||
-                   imgUrl.includes('favicon') ||
-                   imgUrl.includes('tracking') ||
-                   imgUrl.includes('ad') ||
-                   imgUrl.includes('pixel') ||
-                   imgUrl.includes('1x1') ||
-                   imgUrl.includes('spacer');
+  // Filter candidates - remove junk images
+  for (const imgUrl of candidates) {
+    if (images.length >= 8) break; // Stop at 8
 
-    if (!images.includes(imgUrl) && !isJunk) {
+    // Skip common junk patterns
+    const urlLower = imgUrl.toLowerCase();
+    const isJunk = urlLower.includes('logo') ||
+                   urlLower.includes('favicon') ||
+                   urlLower.includes('tracking') ||
+                   urlLower.includes('/ads/') ||
+                   urlLower.includes('/ad/') ||
+                   urlLower.includes('pixel.gif') ||
+                   urlLower.includes('1x1') ||
+                   urlLower.includes('spacer') ||
+                   urlLower.includes('icon') ||
+                   urlLower.includes('spinner') ||
+                   urlLower.includes('loading') ||
+                   urlLower.includes('dot.gif') ||
+                   // Skip tiny tracking images (common size patterns)
+                   (urlLower.includes('pixel') && (
+                     imgUrl.includes('1x1') ||
+                     imgUrl.includes('2x2') ||
+                     imgUrl.includes('3x3')
+                   ));
+
+    if (!isJunk) {
       images.push(imgUrl);
     }
   }
 
-  return images.slice(0, 8); // Return up to 8 images
+  return images;
 }
 
 async function fetchWebContent(url: string): Promise<{ text: string; images: string[] }> {
@@ -302,8 +323,8 @@ export async function POST(req: Request) {
     const { text, images } = await fetchWebContent(url);
     console.log(`[analyze-link] Fetched ${text.length} characters of content and ${images.length} images`);
 
-    // Upload images to media gallery (in parallel)
-    const uploadPromises = images.slice(0, 8).map(img => downloadAndUploadImage(img));
+    // Upload images to media gallery (in parallel) - upload all extracted images
+    const uploadPromises = images.map(img => downloadAndUploadImage(img));
     const uploadedImageIds = await Promise.all(uploadPromises);
     const savedImages = uploadedImageIds.filter(id => id !== null);
     console.log(`[analyze-link] Saved ${savedImages.length} images to media gallery`);
@@ -321,7 +342,7 @@ export async function POST(req: Request) {
       url,
       content_summary,
       tweets,
-      images: images.slice(0, 3), // Return top 3 images for display
+      images: images.slice(0, 8), // Return up to 8 images for display
       saved_image_ids: savedImages, // IDs of saved images in media_library
     });
   } catch (error: any) {
