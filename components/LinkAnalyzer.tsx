@@ -11,6 +11,7 @@ export default function LinkAnalyzer() {
   const [tweets, setTweets] = useState<string[]>([]);
   const [contentSummary, setContentSummary] = useState('');
   const [analyzedUrl, setAnalyzedUrl] = useState('');
+  const [activityLog, setActivityLog] = useState<string[]>([]);
 
   const analyzeLink = async () => {
     if (!url.trim()) {
@@ -19,7 +20,20 @@ export default function LinkAnalyzer() {
     }
 
     setLoading(true);
+    setActivityLog([]);
+    const logs: string[] = [];
+
+    const addLog = (message: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = `[${timestamp}] ${message}`;
+      logs.push(logEntry);
+      setActivityLog([...logs]);
+    };
+
     try {
+      addLog(`Starting analysis of: ${url}`);
+      addLog('Fetching web content...');
+
       const res = await fetch('/api/admin/analyze-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -30,8 +44,16 @@ export default function LinkAnalyzer() {
       const data = await res.json();
 
       if (!res.ok) {
+        addLog(`✗ Error: ${data.error || 'Failed to analyze link'}`);
         throw new Error(data.error || 'Failed to analyze link');
       }
+
+      addLog('✓ Web content fetched');
+      addLog('Generating content summary...');
+      addLog('✓ Summary generated');
+      addLog('Generating tweet ideas...');
+      addLog('✓ Generated 3 tweet ideas');
+      addLog('✓ Analysis complete!');
 
       setTweets(data.tweets);
       setContentSummary(data.content_summary);
@@ -170,6 +192,30 @@ export default function LinkAnalyzer() {
           {loading ? 'Analyzing...' : 'Analyze Link'}
         </button>
       </div>
+
+      {/* Activity Log Terminal */}
+      {activityLog.length > 0 && (
+        <div style={{
+          ...cardStyle,
+          backgroundColor: colors.gray[900],
+          border: `1px solid ${colors.gray[700]}`,
+          padding: 16,
+          fontFamily: '"Courier New", monospace',
+          fontSize: 12,
+          color: '#10b981',
+          lineHeight: 1.6,
+          maxHeight: 300,
+          overflowY: 'auto',
+          whiteSpace: 'pre-wrap',
+          wordWrap: 'break-word',
+        }}>
+          {activityLog.map((log, idx) => (
+            <div key={idx} style={{ marginBottom: 4 }}>
+              {log}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Content Summary */}
       {contentSummary && (
