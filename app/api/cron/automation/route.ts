@@ -4,6 +4,7 @@ import { postToX, postToXAdvanced } from '@/lib/x-api';
 import { savePostHistory, getLastPostTime } from '@/lib/kv-storage';
 import { ingestFromAccountsAndKeywords, ingestFromRSSFeeds } from '@/lib/twitter-reader';
 import { fetchRecentNews } from '@/lib/rss-fetcher';
+import { startAutomationRun, completeAutomationRun, logActivity } from '@/lib/automation-logger';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -174,6 +175,8 @@ async function processScheduledPosts() {
  * to work within Vercel's free tier limit of 1 cron job.
  */
 export async function GET(request: NextRequest) {
+  let automationRunId: string | null = null;
+
   try {
     const results: any = {
       ingestion: null,
@@ -183,9 +186,24 @@ export async function GET(request: NextRequest) {
 
     console.log('[automation] Starting unified cron job');
 
+    // Start automation logging
+    automationRunId = await startAutomationRun('cron');
+    if (!automationRunId) {
+      console.error('[automation] Failed to start automation run log');
+    } else {
+      console.log('[automation] Started automation run:', automationRunId);
+    }
+
     // 0. Ingest from sources (X accounts, keywords, RSS feeds)
     try {
       console.log('[automation] Running ingestion from sources...');
+      await logActivity({
+        category: 'ingestion',
+        severity: 'info',
+        title: 'Starting Content Ingestion',
+        description: 'Fetching from X accounts, keywords, and RSS feeds',
+        automation_run_id: automationRunId || undefined,
+      });
 
       // Run X accounts and keywords ingestion (24hr cooldown per source)
       const xIngestionResult = await ingestFromAccountsAndKeywords();
@@ -196,24 +214,73 @@ export async function GET(request: NextRequest) {
       console.log('[automation] RSS ingestion complete:', rssIngestionResult);
 
       // Combine results
+      const totalInserted = (xIngestionResult.inserted || 0) + (rssIngestionResult.inserted || 0);
       results.ingestion = {
         x_sources: xIngestionResult,
         rss: rssIngestionResult,
-        total_inserted: (xIngestionResult.inserted || 0) + (rssIngestionResult.inserted || 0),
+        total_inserted: totalInserted,
       };
+
+      // Log ingestion completion
+      await logActivity({
+        category: 'ingestion',
+        severity: 'success',
+        title: 'Content Ingestion Complete',
+        description: `Ingested ${totalInserted} new items from all sources`,
+        automation_run_id: automationRunId || undefined,
+        metadata: results.ingestion,
+      });
     } catch (error) {
       console.error('[automation] Ingestion failed:', error);
       results.ingestion = { error: 'Ingestion failed', details: String(error) };
+
+      await logActivity({
+        category: 'ingestion',
+        severity: 'error',
+        title: 'Content Ingestion Failed',
+        description: `Error during ingestion: ${String(error)}`,
+        automation_run_id: automationRunId || undefined,
+      });
     }
 
     // 1. Always process scheduled posts
     try {
       console.log('[automation] Processing scheduled posts...');
+      await logActivity({
+        category: 'posting',
+        severity: 'info',
+        title: 'Processing Scheduled Posts',
+        description: 'Checking for and posting scheduled tweets',
+        automation_run_id: automationRunId || undefined,
+      });
+
       results.scheduled_posts = await processScheduledPosts();
       console.log('[automation] Scheduled posts result:', results.scheduled_posts);
+
+      const postedCount = results.scheduled_posts?.succeeded || 0;
+      const failedCount = results.scheduled_posts?.failed || 0;
+
+      if (postedCount > 0 || failedCount > 0) {
+        await logActivity({
+          category: 'posting',
+          severity: postedCount > 0 ? 'success' : 'warning',
+          title: 'Scheduled Posts Processed',
+          description: `Posted ${postedCount} tweets, ${failedCount} failed`,
+          automation_run_id: automationRunId || undefined,
+          metadata: results.scheduled_posts,
+        });
+      }
     } catch (error) {
       console.error('Error processing scheduled posts:', error);
       results.scheduled_posts = { error: 'Failed to process scheduled posts', details: String(error) };
+
+      await logActivity({
+        category: 'posting',
+        severity: 'error',
+        title: 'Scheduled Posts Processing Failed',
+        description: `Error processing scheduled posts: ${String(error)}`,
+        automation_run_id: automationRunId || undefined,
+      });
     }
 
     // 2. Check if it's time to generate new posts (run at posting times)
@@ -291,15 +358,41 @@ export async function GET(request: NextRequest) {
 
     console.log('[automation] Unified cron job completed');
 
+    // Complete automation logging
+    if (automationRunId) {
+      await completeAutomationRun(automationRunId, 'completed', {
+        posts_created: results.scheduled_posts?.succeeded || 0,
+        candidates_evaluated: 0,
+        errors_count: results.scheduled_posts?.failed || 0,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
       results,
+      automation_run_id: automationRunId,
     });
   } catch (error: any) {
     console.error('Unified cron error:', error);
+
+    // Log the failure
+    if (automationRunId) {
+      await completeAutomationRun(automationRunId, 'failed', {
+        errors_count: 1,
+      });
+    }
+
+    await logActivity({
+      category: 'system',
+      severity: 'error',
+      title: 'Automation Cycle Failed',
+      description: `Critical error in automation: ${String(error)}`,
+      automation_run_id: automationRunId || undefined,
+    });
+
     return NextResponse.json(
-      { error: error.message || 'Cron job failed', details: String(error) },
+      { error: error.message || 'Cron job failed', details: String(error), automation_run_id: automationRunId },
       { status: 500 }
     );
   }

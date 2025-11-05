@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { uploadMediaFromUrl } from '@/lib/x-api';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -8,7 +9,7 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { tweets, url } = await req.json();
+    const { tweets, url, image_url } = await req.json();
 
     if (!tweets || !Array.isArray(tweets) || tweets.length === 0) {
       return NextResponse.json(
@@ -24,6 +25,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // Upload image if provided
+    let mediaIds: string[] = [];
+    if (image_url) {
+      const media = await uploadMediaFromUrl(image_url);
+      if (media.success && media.media_id) {
+        mediaIds = [media.media_id];
+      }
+    }
+
     const batchId = crypto.randomUUID();
     const postsToInsert = tweets.map((text) => ({
       batch_id: batchId,
@@ -31,6 +41,7 @@ export async function POST(req: Request) {
       link_url: url,
       status: 'draft',
       created_at: new Date().toISOString(),
+      ...(mediaIds.length > 0 && { media_ids: mediaIds }),
     }));
 
     const { data, error } = await supabase

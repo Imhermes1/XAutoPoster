@@ -14,6 +14,7 @@ export default function LinkAnalyzer() {
   const [analyzedUrl, setAnalyzedUrl] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [activityLog, setActivityLog] = useState<string[]>([]);
+  const [selectedImageByTweet, setSelectedImageByTweet] = useState<Record<number, string | null>>({});
 
   const analyzeLink = async () => {
     if (!url.trim()) {
@@ -75,10 +76,14 @@ export default function LinkAnalyzer() {
   const postTweet = async (tweetIndex: number, tweetText: string) => {
     setPosting(tweetIndex);
     try {
+      const selectedImage = selectedImageByTweet[tweetIndex];
       const res = await fetch('/api/admin/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: tweetText }),
+        body: JSON.stringify({
+          text: tweetText,
+          ...(selectedImage && { image_url: selectedImage })
+        }),
         credentials: 'include',
       });
 
@@ -127,12 +132,14 @@ export default function LinkAnalyzer() {
   const queueTweet = async (tweetIndex: number, tweetText: string) => {
     setQueueing(tweetIndex);
     try {
+      const selectedImage = selectedImageByTweet[tweetIndex];
       const res = await fetch('/api/admin/analyze-link/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tweets: [tweetText],
-          url: analyzedUrl
+          url: analyzedUrl,
+          ...(selectedImage && { image_url: selectedImage })
         }),
         credentials: 'include',
       });
@@ -396,6 +403,61 @@ export default function LinkAnalyzer() {
               <p style={tweetTextStyle}>
                 {displayTweet}
               </p>
+              {/* Image Selection */}
+              {images.length > 0 && (
+                <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colors.gray[200]}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.gray[600], marginBottom: 8 }}>
+                    Attach image (optional):
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                    <button
+                      onClick={() => {
+                        setSelectedImageByTweet({
+                          ...selectedImageByTweet,
+                          [idx]: null
+                        });
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: 11,
+                        backgroundColor: selectedImageByTweet[idx] === null || selectedImageByTweet[idx] === undefined ? colors.primary : colors.gray[200],
+                        color: selectedImageByTweet[idx] === null || selectedImageByTweet[idx] === undefined ? 'white' : colors.gray[700],
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      None
+                    </button>
+                    {images.map((imgUrl, imgIdx) => (
+                      <button
+                        key={imgIdx}
+                        onClick={() => {
+                          setSelectedImageByTweet({
+                            ...selectedImageByTweet,
+                            [idx]: imgUrl
+                          });
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: 11,
+                          backgroundColor: selectedImageByTweet[idx] === imgUrl ? colors.primary : colors.gray[200],
+                          color: selectedImageByTweet[idx] === imgUrl ? 'white' : colors.gray[700],
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Image {imgIdx + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => postTweet(idx, displayTweet)}

@@ -6,10 +6,13 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '20', 10);
 
+    console.log('[logs-automation] Fetching automation runs, limit:', limit);
     const logs = await getRecentAutomationRuns(limit);
+    console.log('[logs-automation] Fetched', logs?.length || 0, 'automation runs');
 
-    return NextResponse.json({ logs });
+    return NextResponse.json({ logs: logs || [], total: logs?.length || 0 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[logs-automation] Error:', error);
+    return NextResponse.json({ error: error.message, logs: [] }, { status: 500 });
   }
 }
