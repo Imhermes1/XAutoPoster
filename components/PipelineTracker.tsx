@@ -60,25 +60,30 @@ export default function PipelineTracker() {
 
   const fetchPipelineStats = async () => {
     try {
-      const [candidatesRes, historyRes, logsRes] = await Promise.all([
+      const [candidatesRes, historyRes, logsRes, queueRes] = await Promise.all([
         fetch('/api/admin/candidates?limit=100'),
         fetch('/api/admin/history?limit=1'),
         fetch('/api/admin/activity?limit=50'),
+        fetch('/api/admin/queue'), // Fetch generated tweets from bulk_post_queue
       ]);
 
       const candidates = await candidatesRes.json();
       const history = await historyRes.json();
       const logs = await logsRes.json();
+      const queue = await queueRes.json();
 
       // Calculate stats from candidates table
       const candidateList = candidates.items || candidates.candidates || [];
       const totalCandidates = candidateList.length;
-      const analyzedCandidates = candidateList.filter((c: any) => c.analysis_score !== null).length;
-      const generatedCandidates = candidateList.filter((c: any) => c.used === true).length;
+      const analyzedCandidates = candidateList.filter((c: any) => c.overall_score !== null).length;
+
+      // Generated tweets are in bulk_post_queue, not marked in candidates
+      const generatedTweets = queue.items || [];
+      const generatedCandidates = generatedTweets.length;
 
       // Get posting info from history
-      const postedCount = history.posts?.length || history.history?.length || 0;
-      const scheduledCount = candidateList.filter((c: any) => c.used === false && c.analysis_score !== null && c.analysis_score >= 0.6).length || 0;
+      const postedCount = history.posts?.length || history.items?.length || 0;
+      const scheduledCount = generatedCandidates - postedCount;
 
       // Get recent activities
       const activities = logs.activities || [];
