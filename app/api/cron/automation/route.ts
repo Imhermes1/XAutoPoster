@@ -423,6 +423,10 @@ async function runAutomation(request: NextRequest) {
 
         const config = await getAutomationConfig();
 
+        // Create a unique batch ID for this automation run's generated posts
+        const generationBatchId = automationRunId || crypto.randomUUID();
+        console.log(`[automation] Using batch ID for generated posts: ${generationBatchId}`);
+
         let generated = 0;
         const generationErrors: string[] = [];
 
@@ -467,14 +471,12 @@ async function runAutomation(request: NextRequest) {
 
               if (!updateError) {
                 // Add generated tweet to bulk_post_queue as draft
-                // Note: batch_id is required - using a dummy batch for single-candidate generation
                 const { error: queueError } = await supabase
                   .from('bulk_post_queue')
                   .insert({
-                    batch_id: '00000000-0000-0000-0000-000000000000', // Dummy batch ID for auto-generated posts
+                    batch_id: generationBatchId, // Batch ID links all posts from this automation run
                     post_text: tweetText,
                     status: 'draft'
-                    // Note: candidate_id is not a column in bulk_post_queue - it was already marked as used above
                   });
 
                 if (!queueError) {
