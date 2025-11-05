@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { postToX, postToXAdvanced } from '@/lib/x-api';
 import { savePostHistory, getLastPostTime } from '@/lib/kv-storage';
+import { ingestFromAccountsAndKeywords } from '@/lib/twitter-reader';
+import { fetchRecentNews } from '@/lib/rss-fetcher';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -174,11 +176,23 @@ async function processScheduledPosts() {
 export async function GET(request: NextRequest) {
   try {
     const results: any = {
+      ingestion: null,
       scheduled_posts: null,
       new_post_generation: null,
     };
 
     console.log('[automation] Starting unified cron job');
+
+    // 0. Ingest from sources (X accounts, keywords, RSS feeds)
+    try {
+      console.log('[automation] Running ingestion from sources...');
+      const ingestionResult = await ingestFromAccountsAndKeywords();
+      console.log('[automation] Ingestion complete:', ingestionResult);
+      results.ingestion = ingestionResult;
+    } catch (error) {
+      console.error('[automation] Ingestion failed:', error);
+      results.ingestion = { error: 'Ingestion failed', details: String(error) };
+    }
 
     // 1. Always process scheduled posts
     try {
