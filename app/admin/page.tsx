@@ -46,6 +46,8 @@ export default function AdminPage() {
   const [twitterUsername, setTwitterUsername] = useState('');
   const [convertingTwitter, setConvertingTwitter] = useState(false);
   const [twitterMessage, setTwitterMessage] = useState('');
+  const [fetchingRss, setFetchingRss] = useState(false);
+  const [fetchMessage, setFetchMessage] = useState('');
   const [newCount, setNewCount] = useState(1);
   const [bulkCount, setBulkCount] = useState(1);
   const [bulkTopic, setBulkTopic] = useState('');
@@ -150,6 +152,28 @@ export default function AdminPage() {
       setTwitterMessage(`❌ ${String(error)}`);
     } finally {
       setConvertingTwitter(false);
+    }
+  };
+
+  const fetchRssNow = async () => {
+    setFetchingRss(true);
+    setFetchMessage('Fetching RSS feeds...');
+    try {
+      const response = await fetch('/api/cron/fetch-rss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch');
+
+      const inserted = data.inserted || 0;
+      setFetchMessage(`✅ Fetched successfully: ${inserted} new items`);
+      refresh(); // Refresh the page data
+      setTimeout(() => setFetchMessage(''), 5000);
+    } catch (error) {
+      setFetchMessage(`❌ Fetch failed: ${String(error)}`);
+    } finally {
+      setFetchingRss(false);
     }
   };
 
@@ -736,6 +760,32 @@ export default function AdminPage() {
         {/* RSS Sources */}
         <div style={sectionStyle}>
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>RSS Sources</h2>
+
+          {/* Fetch Now Button */}
+          <div style={{ marginBottom: 16, padding: 10, backgroundColor: '#fef3c7', borderRadius: 4, border: '1px solid #fbbf24' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: '#92400e', margin: 0 }}>Fetch RSS Now</h3>
+              <button
+                onClick={fetchRssNow}
+                disabled={fetchingRss}
+                style={{
+                  ...buttonStyle,
+                  backgroundColor: fetchingRss ? '#d1d5db' : '#f59e0b',
+                  opacity: fetchingRss ? 0.6 : 1,
+                  cursor: fetchingRss ? 'not-allowed' : 'pointer',
+                  padding: '6px 12px',
+                  fontSize: 12
+                }}
+              >
+                {fetchingRss ? 'Fetching...' : '🔄 Fetch Now'}
+              </button>
+            </div>
+            {fetchMessage && (
+              <div style={{ fontSize: 12, padding: 6, backgroundColor: 'white', borderRadius: 3 }}>
+                {fetchMessage}
+              </div>
+            )}
+          </div>
 
           {/* Twitter to RSS Converter */}
           <div style={{ marginBottom: 16, padding: 10, backgroundColor: '#f0f9ff', borderRadius: 4, border: '1px solid #bfdbfe' }}>
