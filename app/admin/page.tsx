@@ -43,6 +43,9 @@ export default function AdminPage() {
   const [newUrl, setNewUrl] = useState('');
   const [newCat, setNewCat] = useState('');
   const [newTopic, setNewTopic] = useState('');
+  const [twitterUsername, setTwitterUsername] = useState('');
+  const [convertingTwitter, setConvertingTwitter] = useState(false);
+  const [twitterMessage, setTwitterMessage] = useState('');
   const [newCount, setNewCount] = useState(1);
   const [bulkCount, setBulkCount] = useState(1);
   const [bulkTopic, setBulkTopic] = useState('');
@@ -123,6 +126,31 @@ export default function AdminPage() {
     setNewUrl('');
     setNewCat('');
     refresh();
+  };
+
+  const convertTwitterToRss = async () => {
+    if (!twitterUsername) return;
+    setConvertingTwitter(true);
+    setTwitterMessage('');
+    try {
+      const response = await fetch('/api/admin/sources/twitter-to-rss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: twitterUsername }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to convert');
+
+      setTwitterMessage(`✅ Converted @${data.username} → ${data.rssUrl}`);
+      setNewUrl(data.rssUrl);
+      setNewCat('Twitter');
+      setTwitterUsername('');
+      setTimeout(() => setTwitterMessage(''), 5000);
+    } catch (error) {
+      setTwitterMessage(`❌ ${String(error)}`);
+    } finally {
+      setConvertingTwitter(false);
+    }
   };
 
   const delSource = async (id: string) => {
@@ -708,11 +736,41 @@ export default function AdminPage() {
         {/* RSS Sources */}
         <div style={sectionStyle}>
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>RSS Sources</h2>
+
+          {/* Twitter to RSS Converter */}
+          <div style={{ marginBottom: 16, padding: 10, backgroundColor: '#f0f9ff', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1e40af' }}>Convert Twitter Profile to RSS</h3>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <input
+                placeholder="Twitter username (e.g., elonmusk)"
+                value={twitterUsername}
+                onChange={e => setTwitterUsername(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && convertTwitterToRss()}
+                style={inputStyle}
+              />
+              <button
+                onClick={convertTwitterToRss}
+                disabled={convertingTwitter || !twitterUsername}
+                style={{ ...buttonStyle, opacity: convertingTwitter ? 0.6 : 1, cursor: convertingTwitter ? 'not-allowed' : 'pointer' }}
+              >
+                {convertingTwitter ? 'Converting...' : 'Convert'}
+              </button>
+            </div>
+            {twitterMessage && (
+              <div style={{ fontSize: 12, padding: 6, backgroundColor: 'white', borderRadius: 3, marginBottom: 8 }}>
+                {twitterMessage}
+              </div>
+            )}
+          </div>
+
+          {/* Add RSS Feed */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexDirection: 'column' }}>
             <input placeholder="Feed URL" value={newUrl} onChange={e => setNewUrl(e.target.value)} style={inputStyle} />
             <input placeholder="Category (optional)" value={newCat} onChange={e => setNewCat(e.target.value)} style={inputStyle} />
             <button onClick={addSource} style={buttonStyle}>Add Source</button>
           </div>
+
+          {/* Sources List */}
           <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
             {sources.map(s => (
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
