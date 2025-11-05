@@ -8,13 +8,15 @@ const supabase = createClient(
 
 async function downloadAndUploadImage(imageUrl: string): Promise<string | null> {
   try {
+    let normalizedUrl = imageUrl;
+
     // Handle Next.js image optimization URLs
     // Extract the actual image URL from _next/image?url=... format
-    if (imageUrl.includes('_next/image')) {
-      const match = imageUrl.match(/url=([^&]+)/);
+    if (normalizedUrl.includes('_next/image')) {
+      const match = normalizedUrl.match(/url=([^&]+)/);
       if (match) {
         try {
-          imageUrl = decodeURIComponent(match[1]);
+          normalizedUrl = decodeURIComponent(match[1]);
         } catch (e) {
           // If decoding fails, continue with original URL
         }
@@ -22,7 +24,7 @@ async function downloadAndUploadImage(imageUrl: string): Promise<string | null> 
     }
 
     // Download image from URL
-    const response = await fetch(imageUrl, {
+    const response = await fetch(normalizedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
@@ -66,7 +68,7 @@ async function downloadAndUploadImage(imageUrl: string): Promise<string | null> 
         file_name: fileName,
         file_size: buffer.byteLength,
         mime_type: contentType,
-        description: `Extracted from: ${imageUrl}`,
+        description: `Extracted from: ${normalizedUrl}`,
       }])
       .select('id')
       .single();
@@ -183,25 +185,32 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
     }
   }
 
-  // Filter candidates - remove junk images
+  // Filter candidates - remove junk images and deduplicate
+  const seenUrls = new Set<string>(); // Track normalized URLs to prevent duplicates
+
   for (let imgUrl of candidates) {
     if (images.length >= 12) break; // Increased to 12 before filtering
 
-    // Decode Next.js image optimization URLs
-    if (imgUrl.includes('_next/image')) {
-      const match = imgUrl.match(/url=([^&]+)/);
+    // Decode Next.js image optimization URLs to normalize
+    let normalizedUrl = imgUrl;
+    if (normalizedUrl.includes('_next/image')) {
+      const match = normalizedUrl.match(/url=([^&]+)/);
       if (match) {
         try {
-          const decodedUrl = decodeURIComponent(match[1]);
-          imgUrl = decodedUrl;
+          normalizedUrl = decodeURIComponent(match[1]);
         } catch (e) {
           // If decoding fails, continue with original URL
         }
       }
     }
 
+    // Skip if we've already seen this normalized URL
+    if (seenUrls.has(normalizedUrl)) {
+      continue;
+    }
+
     // Skip common junk patterns
-    const urlLower = imgUrl.toLowerCase();
+    const urlLower = normalizedUrl.toLowerCase();
     const isJunk = urlLower.includes('logo') ||
                    urlLower.includes('favicon') ||
                    urlLower.includes('tracking') ||
@@ -217,13 +226,14 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
                    urlLower.includes('.svg') ||  // Often icons/logos
                    // Skip tiny tracking images
                    (urlLower.includes('pixel') && (
-                     imgUrl.includes('1x1') ||
-                     imgUrl.includes('2x2') ||
-                     imgUrl.includes('3x3')
+                     normalizedUrl.includes('1x1') ||
+                     normalizedUrl.includes('2x2') ||
+                     normalizedUrl.includes('3x3')
                    ));
 
     if (!isJunk) {
-      images.push(imgUrl);
+      seenUrls.add(normalizedUrl);
+      images.push(normalizedUrl);
     }
   }
 
