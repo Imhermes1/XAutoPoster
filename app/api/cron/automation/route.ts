@@ -5,6 +5,7 @@ import { savePostHistory, getLastPostTime } from '@/lib/kv-storage';
 import { ingestFromAccountsAndKeywords, ingestFromRSSFeeds } from '@/lib/twitter-reader';
 import { fetchRecentNews } from '@/lib/rss-fetcher';
 import { startAutomationRun, completeAutomationRun, logActivity } from '@/lib/automation-logger';
+import { generatePost } from '@/lib/content-generator';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -327,6 +328,71 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       console.error('[automation] Error scheduling drafts:', error);
+    }
+
+    // 0.75. Generate tweets from analyzed candidates (from candidates table)
+    try {
+      console.log('[automation] Generating tweets from analyzed candidates...');
+
+      // Get candidates that have been analyzed but not yet generated
+      const { data: candidates, error: candidatesError } = await supabase
+        .from('candidates')
+        .select('id, text, analysis_score, source')
+        .not('analysis_score', 'is', null)
+        .is('generated_at', null)
+        .order('analysis_score', { ascending: false })
+        .limit(5); // Generate up to 5 per cycle
+
+      if (!candidatesError && candidates && candidates.length > 0) {
+        console.log(`[automation] Found ${candidates.length} candidates to generate`);
+
+        const config = await getAutomationConfig();
+
+        let generated = 0;
+        for (const candidate of candidates) {
+          try {
+            console.log(`[automation] Generating tweet for candidate ${candidate.id}`);
+
+            // Generate tweet
+            const tweetText = await generatePost(
+              candidate.text,
+              undefined, // context
+              config?.brand_voice_instructions
+            );
+
+            if (tweetText) {
+              // Update candidate as generated
+              const { error: updateError } = await supabase
+                .from('candidates')
+                .update({
+                  generated_at: new Date().toISOString(),
+                  generated_text: tweetText
+                })
+                .eq('id', candidate.id);
+
+              if (!updateError) {
+                generated++;
+                console.log(`[automation] Generated tweet for ${candidate.id}`);
+              }
+            }
+          } catch (error) {
+            console.error(`[automation] Error generating for candidate ${candidate.id}:`, error);
+          }
+        }
+
+        if (generated > 0) {
+          await logActivity({
+            category: 'system',
+            severity: 'success',
+            title: 'Tweets Generated from Candidates',
+            description: `Generated ${generated} tweets from analyzed candidates`,
+            automation_run_id: automationRunId || undefined,
+            metadata: { generated_count: generated }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[automation] Error generating candidate tweets:', error);
     }
 
     // 1. Always process scheduled posts
