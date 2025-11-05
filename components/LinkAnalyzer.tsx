@@ -79,14 +79,16 @@ export default function LinkAnalyzer() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to post tweet');
+      if (!res.ok || !data.success) {
+        const errorMsg = data.error || data.message || 'Failed to post tweet';
+        throw new Error(errorMsg);
       }
 
       showToast('success', 'Posted', `Tweet posted to X! ID: ${data.id}`);
     } catch (e: any) {
       console.error('Post error:', e);
-      showToast('error', 'Post Failed', e.message);
+      const errorMessage = e.message || 'Unknown error posting tweet';
+      showToast('error', 'Post Failed', errorMessage);
     } finally {
       setPosting(null);
     }
