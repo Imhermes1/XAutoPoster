@@ -71,13 +71,13 @@ export default function PipelineTracker() {
       const logs = await logsRes.json();
 
       // Calculate stats from candidates table
-      const candidateList = candidates.candidates || [];
+      const candidateList = candidates.items || candidates.candidates || [];
       const totalCandidates = candidateList.length;
       const analyzedCandidates = candidateList.filter((c: any) => c.analysis_score !== null).length;
       const generatedCandidates = candidateList.filter((c: any) => c.used === true).length;
 
       // Get posting info from history
-      const postedCount = history.history?.length || 0;
+      const postedCount = history.posts?.length || history.history?.length || 0;
       const scheduledCount = candidateList.filter((c: any) => c.used === false && c.analysis_score !== null && c.analysis_score >= 0.6).length || 0;
 
       // Get recent activities
