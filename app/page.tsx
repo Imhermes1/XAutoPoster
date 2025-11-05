@@ -10,8 +10,9 @@ import LogsViewer from '@/components/LogsViewer';
 import MediaLibrary from '@/components/MediaLibrary';
 import QueueViewer from '@/components/QueueViewer';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
+import LinkAnalyzer from '@/components/LinkAnalyzer';
 
-type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue' | 'analytics';
+type Tab = 'dashboard' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue' | 'analytics' | 'link-analyzer';
 
 export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -251,6 +252,9 @@ export default function AutomationDashboard() {
           <button style={tabStyle(activeTab === 'analytics')} onClick={() => setActiveTab('analytics')}>
             Analytics
           </button>
+          <button style={tabStyle(activeTab === 'link-analyzer')} onClick={() => setActiveTab('link-analyzer')}>
+            Link Analyzer
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -278,6 +282,9 @@ export default function AutomationDashboard() {
           )}
           {activeTab === 'analytics' && (
             <AnalyticsDashboard />
+          )}
+          {activeTab === 'link-analyzer' && (
+            <LinkAnalyzer />
           )}
         </div>
       </div>
