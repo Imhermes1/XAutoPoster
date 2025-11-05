@@ -342,6 +342,18 @@ async function runAutomation(request: NextRequest) {
         automation_run_id: automationRunId || undefined,
       });
 
+      // First, try a simple query to see if we can access candidates at all
+      const { data: testQuery, error: testError } = await supabase
+        .from('candidates')
+        .select('id, used, text')
+        .limit(5);
+
+      console.log('[automation] Test query result:', {
+        found: testQuery?.length || 0,
+        error: testError?.message || 'none',
+        sample: testQuery?.[0] || null,
+      });
+
       // Get candidates that haven't been used yet
       const { data: candidates, error: candidatesError} = await supabase
         .from('candidates')
