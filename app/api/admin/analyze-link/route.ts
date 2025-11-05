@@ -37,7 +37,7 @@ async function fetchWebContent(url: string): Promise<string> {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; X-Autoposter/1.0)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
 
@@ -45,15 +45,22 @@ async function fetchWebContent(url: string): Promise<string> {
 
     const html = await response.text();
 
-    // Simple HTML to text extraction
-    const text = html
+    // Extract main content - remove nav, footer, scripts, styles
+    let text = html
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
+      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+      .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]+>/g, '\n')
+      .replace(/\n\s*\n/g, '\n')
       .replace(/\s+/g, ' ')
       .trim();
 
-    return text.substring(0, 3000); // Limit to 3000 chars
+    // Extract roughly the first 2500 chars of meaningful content
+    return text.substring(0, 2500);
   } catch (error) {
     throw new Error(`Failed to fetch: ${error}`);
   }
@@ -67,12 +74,18 @@ async function generateContentSummary(content: string, url: string): Promise<str
     throw new Error('No LLM API key configured');
   }
 
-  const prompt = `Read this web content and write a 1-2 sentence summary that captures the core idea or main value proposition. Be specific and concrete, not generic.
+  const prompt = `You are a technical writer. Read this content and write ONE sentence that captures the main idea.
 
-Content from ${url}:
+Requirements:
+- Avoid jargon and fluff
+- Be direct and specific
+- Focus on the "why it matters" not "what it is"
+- Under 100 characters if possible
+
+Content:
 ${content}
 
-Write ONLY the summary, no other text.`;
+Write ONLY that one sentence, nothing else.`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -109,33 +122,28 @@ async function generateTweetIdeas(content: string, url: string): Promise<string[
     throw new Error('No LLM API key configured');
   }
 
-  const prompt = `You are an expert at crafting engaging tweets for tech/professional audiences on X.
+  const prompt = `You are a legendary tech Twitter user. Create 3 tweets people actually WANT to engage with.
 
-Read this web content and create 3 standalone tweets that:
-1. Start with a hook or question to grab attention
-2. Highlight the key takeaway (1 specific, concrete insight)
-3. Are ready-to-post (under 280 chars, no hashtags unless essential)
-4. Sound authentic and conversational, not like AI
-5. Make readers think "I should know this" or "I should try this"
+Rules:
+1. Each tweet is standalone, not part of a thread
+2. Include the link: ${url}
+3. No hashtags, no emoji, no "fun fact" or "pro tip" language
+4. No AI-speak. Sound like a real person sharing something valuable
+5. Each tweet should make someone stop scrolling because it's genuinely interesting
+6. Avoid generic statements - be specific
+7. Under 280 chars each
 
-DO NOT:
-- Use generic phrases like "fun fact" or "pro tip"
-- Include "thread:" or "1/" - make standalone tweets
-- Be too promotional or salesy
-- Repeat information across the 3 tweets
-- Use emoji (unless it genuinely adds value)
-
-Content from ${url}:
+The content to base tweets on:
 ${content}
 
-Generate exactly 3 tweets as a JSON array with this format:
+Generate 3 tweets as JSON:
 [
-  { "tweet": "Your actual tweet text here under 280 chars" },
-  { "tweet": "Second standalone tweet here" },
-  { "tweet": "Third standalone tweet here" }
+  { "tweet": "tweet text with link" },
+  { "tweet": "tweet text with link" },
+  { "tweet": "tweet text with link" }
 ]
 
-Respond with ONLY the JSON array, no other text.`;
+Only output the JSON array.`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
