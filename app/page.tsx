@@ -12,6 +12,7 @@ import MediaLibrary from '@/components/MediaLibrary';
 import QueueViewer from '@/components/QueueViewer';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import LinkAnalyzer from '@/components/LinkAnalyzer';
+import BreakingNewsModal from '@/components/BreakingNewsModal';
 
 type Tab = 'dashboard' | 'pipeline' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue' | 'analytics' | 'link-analyzer';
 
@@ -19,6 +20,7 @@ export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [config, setConfig] = useState<any>(null);
   const [authStatus, setAuthStatus] = useState<any>(null);
+  const [showBreakingNews, setShowBreakingNews] = useState(false);
   const { showToast } = useToast();
 
   const refresh = async () => {
@@ -224,6 +226,36 @@ export default function AutomationDashboard() {
                 </span>
               </div>
             )}
+            {/* Breaking News Button */}
+            <button
+              onClick={() => setShowBreakingNews(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '12px 24px',
+                borderRadius: 8,
+                backgroundColor: colors.danger,
+                border: `2px solid ${colors.danger}`,
+                color: 'white',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                transition: 'all 0.2s ease',
+                animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)';
+              }}
+            >
+              🚨 BREAKING NEWS
+            </button>
           </div>
         </div>
 
@@ -295,6 +327,16 @@ export default function AutomationDashboard() {
           )}
         </div>
       </div>
+
+      {/* Breaking News Modal */}
+      <BreakingNewsModal
+        isOpen={showBreakingNews}
+        onClose={() => setShowBreakingNews(false)}
+        onSuccess={() => {
+          showToast('success', 'Breaking news tweets scheduled!');
+          refresh();
+        }}
+      />
     </div>
   );
 }
