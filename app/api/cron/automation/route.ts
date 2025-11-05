@@ -408,16 +408,39 @@ async function runAutomation(request: NextRequest) {
         const config = await getAutomationConfig();
 
         let generated = 0;
+        const generationErrors: string[] = [];
+
         for (const candidate of candidates) {
           try {
             console.log(`[automation] Generating tweet for candidate ${candidate.id}`);
 
             // Generate tweet
-            const tweetText = await generatePost(
-              candidate.text,
-              undefined, // context
-              config?.brand_voice_instructions
-            );
+            let tweetText: string | undefined;
+            try {
+              tweetText = await generatePost(
+                candidate.text,
+                undefined, // context
+                config?.brand_voice_instructions
+              );
+            } catch (genError: any) {
+              const errorMsg = `Failed to generate tweet for candidate ${candidate.id}: ${String(genError)}`;
+              console.error(`[automation] LLM generation failed:`, genError);
+              generationErrors.push(errorMsg);
+
+              // Log this specific error but continue to next candidate
+              await logActivity({
+                category: 'system',
+                severity: 'warning',
+                title: 'LLM Generation Failed for Candidate',
+                description: errorMsg,
+                automation_run_id: automationRunId || undefined,
+                metadata: {
+                  candidate_id: candidate.id,
+                  error: String(genError)
+                }
+              });
+              continue;
+            }
 
             if (tweetText) {
               // Mark candidate as used
@@ -444,13 +467,41 @@ async function runAutomation(request: NextRequest) {
                 if (!queueError) {
                   generated++;
                   console.log(`[automation] Generated tweet for ${candidate.id} and added to queue`);
+
+                  await logActivity({
+                    category: 'system',
+                    severity: 'success',
+                    title: 'Tweet Generated Successfully',
+                    description: `Generated tweet from candidate ${candidate.id}`,
+                    automation_run_id: automationRunId || undefined,
+                    metadata: {
+                      candidate_id: candidate.id,
+                      tweet_length: tweetText.length
+                    }
+                  });
                 } else {
                   console.error(`[automation] Failed to add to queue:`, queueError);
+                  generationErrors.push(`Failed to queue tweet for ${candidate.id}: ${queueError.message}`);
                 }
+              } else {
+                console.error(`[automation] Failed to mark candidate as used:`, updateError);
+                generationErrors.push(`Failed to mark candidate ${candidate.id} as used: ${updateError.message}`);
               }
+            } else {
+              console.warn(`[automation] generatePost returned empty text for candidate ${candidate.id}`);
+              generationErrors.push(`generatePost returned empty text for candidate ${candidate.id}`);
             }
-          } catch (error) {
-            console.error(`[automation] Error generating for candidate ${candidate.id}:`, error);
+          } catch (error: any) {
+            console.error(`[automation] Unexpected error for candidate ${candidate.id}:`, error);
+            generationErrors.push(`Unexpected error for candidate ${candidate.id}: ${String(error)}`);
+
+            await logActivity({
+              category: 'system',
+              severity: 'error',
+              title: 'Candidate Generation Exception',
+              description: `Unexpected error processing candidate ${candidate.id}: ${String(error)}`,
+              automation_run_id: automationRunId || undefined,
+            });
           }
         }
 
