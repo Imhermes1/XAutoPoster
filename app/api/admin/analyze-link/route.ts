@@ -8,6 +8,19 @@ const supabase = createClient(
 
 async function downloadAndUploadImage(imageUrl: string): Promise<string | null> {
   try {
+    // Handle Next.js image optimization URLs
+    // Extract the actual image URL from _next/image?url=... format
+    if (imageUrl.includes('_next/image')) {
+      const match = imageUrl.match(/url=([^&]+)/);
+      if (match) {
+        try {
+          imageUrl = decodeURIComponent(match[1]);
+        } catch (e) {
+          // If decoding fails, continue with original URL
+        }
+      }
+    }
+
     // Download image from URL
     const response = await fetch(imageUrl, {
       headers: {
@@ -171,8 +184,21 @@ async function extractImages(html: string, baseUrl: string): Promise<string[]> {
   }
 
   // Filter candidates - remove junk images
-  for (const imgUrl of candidates) {
+  for (let imgUrl of candidates) {
     if (images.length >= 12) break; // Increased to 12 before filtering
+
+    // Decode Next.js image optimization URLs
+    if (imgUrl.includes('_next/image')) {
+      const match = imgUrl.match(/url=([^&]+)/);
+      if (match) {
+        try {
+          const decodedUrl = decodeURIComponent(match[1]);
+          imgUrl = decodedUrl;
+        } catch (e) {
+          // If decoding fails, continue with original URL
+        }
+      }
+    }
 
     // Skip common junk patterns
     const urlLower = imgUrl.toLowerCase();
