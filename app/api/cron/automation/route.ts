@@ -501,7 +501,26 @@ async function runAutomation(request: NextRequest) {
                     details: queueError.details,
                     hint: queueError.hint
                   });
-                  generationErrors.push(`Failed to queue tweet for ${candidate.id}: ${queueError.message || JSON.stringify(queueError)}`);
+
+                  const errorMsg = `Failed to queue tweet for ${candidate.id}: ${queueError.message || JSON.stringify(queueError)}`;
+                  generationErrors.push(errorMsg);
+
+                  // Log to activity stream with full error details
+                  await logActivity({
+                    category: 'system',
+                    severity: 'error',
+                    title: 'Failed to Queue Tweet',
+                    description: errorMsg,
+                    automation_run_id: automationRunId || undefined,
+                    metadata: {
+                      candidate_id: candidate.id,
+                      error_message: queueError.message,
+                      error_code: queueError.code,
+                      error_details: queueError.details,
+                      error_hint: queueError.hint,
+                      error_full: JSON.stringify(queueError)
+                    }
+                  });
                 }
               } else {
                 console.error(`[automation] Failed to mark candidate as used:`, updateError);
