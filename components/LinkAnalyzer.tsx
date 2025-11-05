@@ -7,6 +7,7 @@ export default function LinkAnalyzer() {
   const { showToast } = useToast();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [posting, setPosting] = useState<number | null>(null);
   const [tweets, setTweets] = useState<string[]>([]);
   const [contentSummary, setContentSummary] = useState('');
   const [analyzedUrl, setAnalyzedUrl] = useState('');
@@ -41,6 +42,31 @@ export default function LinkAnalyzer() {
       showToast('error', 'Analysis Failed', e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const postTweet = async (tweetIndex: number, tweetText: string) => {
+    setPosting(tweetIndex);
+    try {
+      const res = await fetch('/api/admin/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: tweetText }),
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to post tweet');
+      }
+
+      showToast('success', 'Posted', `Tweet posted to X! ID: ${data.id}`);
+    } catch (e: any) {
+      console.error('Post error:', e);
+      showToast('error', 'Post Failed', e.message);
+    } finally {
+      setPosting(null);
     }
   };
 
@@ -182,25 +208,45 @@ export default function LinkAnalyzer() {
               <p style={tweetTextStyle}>
                 {tweet}
               </p>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(tweet);
-                  showToast('success', 'Copied', 'Tweet copied to clipboard');
-                }}
-                style={{
-                  padding: '6px 12px',
-                  fontSize: 12,
-                  backgroundColor: colors.gray[200],
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  color: colors.gray[700],
-                  fontWeight: 500,
-                  transition: 'all 0.2s',
-                }}
-              >
-                Copy Tweet
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => postTweet(idx, tweet)}
+                  disabled={posting === idx}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    backgroundColor: colors.primary,
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: posting === idx ? 'not-allowed' : 'pointer',
+                    color: '#fff',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    opacity: posting === idx ? 0.6 : 1,
+                  }}
+                >
+                  {posting === idx ? 'Posting...' : 'Post to X'}
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(tweet);
+                    showToast('success', 'Copied', 'Tweet copied to clipboard');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    backgroundColor: colors.gray[200],
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    color: colors.gray[700],
+                    fontWeight: 500,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
             </div>
           ))}
         </div>
