@@ -70,8 +70,7 @@ async function runAutomation(request: NextRequest) {
 
     if (openrouterKeyFromHeader) {
       console.log('[automation] Using OpenRouter API key from request header');
-      // Set it as an environment variable so generatePost can use it
-      process.env.OPENROUTER_API_KEY = openrouterKeyFromHeader;
+      // API key is passed explicitly to generatePost() instead of mutating process.env
     } else {
       console.warn('[automation] No OpenRouter API key in header - will fall back to Supabase config');
     }
@@ -313,7 +312,8 @@ async function runAutomation(request: NextRequest) {
               tweetText = await generatePost(
                 candidate.text,
                 undefined, // context
-                config?.brand_voice_instructions
+                config?.brand_voice_instructions,
+                openrouterKeyFromHeader || undefined // pass API key explicitly instead of mutating process.env
               );
             } catch (genError: any) {
               const errorMsg = `Failed to generate tweet for candidate ${candidate.id}: ${String(genError)}`;
@@ -346,15 +346,16 @@ async function runAutomation(request: NextRequest) {
                 recommendation: qualityScore.recommendation
               });
 
-              // Auto-delete tweets scoring below 6.5
-              if (qualityScore.overall < 6.5) {
-                console.warn(`[automation] Tweet scored ${qualityScore.overall} (< 6.5 threshold) - SKIPPING`);
+              // Auto-delete tweets scoring below configured threshold (default 6.0)
+              const qualityThreshold = (config?.quality_threshold as number) || 6.0;
+              if (qualityScore.overall < qualityThreshold) {
+                console.warn(`[automation] Tweet scored ${qualityScore.overall} (< ${qualityThreshold} threshold) - SKIPPING`);
 
                 await logActivity({
                   category: 'system',
                   severity: 'warning',
                   title: 'Low-Quality Tweet Rejected',
-                  description: `Tweet scored ${qualityScore.overall}/10 - below quality threshold of 6.5`,
+                  description: `Tweet scored ${qualityScore.overall}/10 - below quality threshold of ${qualityThreshold}`,
                   automation_run_id: automationRunId || undefined,
                   metadata: {
                     candidate_id: candidate.id,
@@ -405,7 +406,7 @@ async function runAutomation(request: NextRequest) {
                     source_type: candidate.source as string,
                     source_id: candidate.id,
                     generated_text: tweetText,
-                    passed_quality_check: qualityScore.overall >= 6.5,
+                    passed_quality_check: qualityScore.overall >= qualityThreshold,
                     input_context: {
                       candidate_id: candidate.id,
                       content_type: candidate.type

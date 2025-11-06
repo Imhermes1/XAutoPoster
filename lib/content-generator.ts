@@ -2,14 +2,19 @@ import { OpenAI } from 'openai';
 import { BRAND_VOICE_PROMPT, BRAND_VOICE_PRESETS } from './constants';
 import { createClient } from '@supabase/supabase-js';
 
-async function getClient() {
-  // 1) Env var (OpenRouter only)
+async function getClient(overrideApiKey?: string) {
+  // 1) Use provided API key (preferred, passed explicitly from caller)
+  if (overrideApiKey) {
+    return new OpenAI({ apiKey: overrideApiKey, baseURL: 'https://openrouter.ai/api/v1' });
+  }
+
+  // 2) Env var (OpenRouter only) - fallback
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   if (openrouterKey) {
     return new OpenAI({ apiKey: openrouterKey, baseURL: 'https://openrouter.ai/api/v1' });
   }
 
-  // 2) Try Supabase config if available (OpenRouter only)
+  // 3) Try Supabase config if available (OpenRouter only)
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
       const supabase = createClient(
@@ -39,7 +44,7 @@ async function getClient() {
     }
   }
 
-  throw new Error('Missing LLM API key: set OPENROUTER_API_KEY or store it in Supabase automation_config (llm_api_key/openrouter_api_key/api_key).');
+  throw new Error('Missing LLM API key: set OPENROUTER_API_KEY, pass via generatePost() parameter, or store it in Supabase automation_config (llm_api_key/openrouter_api_key/api_key).');
 }
 
 async function getSelectedModel(): Promise<string> {
@@ -106,7 +111,8 @@ async function getBrandVoiceInstructions(): Promise<string> {
 export async function generatePost(
   topic: string,
   context?: string,
-  customInstructions?: string
+  customInstructions?: string,
+  apiKey?: string
 ): Promise<string> {
   const brandVoice = await getBrandVoiceInstructions();
 
@@ -134,7 +140,7 @@ Make it shareable, informative, opinionated, and in your voice.`;
   console.log('[generatePost] Prompt length:', prompt.length, 'characters');
   console.log('[generatePost] Has custom instructions:', !!customInstructions);
 
-  const client = await getClient();
+  const client = await getClient(apiKey);
   const model = await getSelectedModel();
 
   const message = await client.chat.completions.create({
