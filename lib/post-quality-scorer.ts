@@ -65,17 +65,14 @@ export function scorePostQuality(text: string): PostQualityScore {
     reasoning.push(`Too many emojis (${emojiCount}) - can seem spammy`);
   }
 
-  // Length optimization
+  // Length optimization - be generous with length
   const wordCount = text.split(/\s+/).length;
-  if (wordCount >= 15 && wordCount <= 50) {
+  if (wordCount >= 10 && wordCount <= 100) {
     engagementScore += 1;
-    reasoning.push('Optimal length - concise but substantive');
+    reasoning.push('Optimal length - good substance');
   } else if (wordCount < 10) {
-    engagementScore -= 1;
-    reasoning.push('Too short - may lack substance');
-  } else if (wordCount > 80) {
     engagementScore -= 0.5;
-    reasoning.push('Long-form - might reduce engagement');
+    reasoning.push('Short - but potentially punchy');
   }
 
   // Multiple sentences encourage interaction
@@ -172,22 +169,29 @@ export function scorePostQuality(text: string): PostQualityScore {
   }
 
   // --- OVERALL SCORE (BALANCED APPROACH) ---
-  // Weight engagement and virality, boost by content type
-  let overallScore = (engagementScore * 0.5 + viralityScore * 0.3 + contentType.score * 0.2);
+  // Weight virality higher since engagement base is conservative
+  // Formula: if it has good length + some virality signals, it's good enough
+  let overallScore = (viralityScore * 0.5 + engagementScore * 0.3 + contentType.score * 0.2);
 
   // Bonus for diverse content (not all viral-focused)
   if (contentType.type === 'conversation-starter' || contentType.type === 'tips-tricks') {
-    overallScore += 1;
+    overallScore += 0.8;
     reasoning.push('Conversation/tips format - good for audience engagement');
+  }
+
+  // Bonus for just being substantive and on-topic (base 1 point for having content)
+  if (wordCount >= 10) {
+    overallScore += 0.5;
+    reasoning.push('Substantive content - worth sharing');
   }
 
   overallScore = Math.min(10, Math.max(0, Math.round(overallScore * 10) / 10));
 
   // --- RECOMMENDATION ---
   let recommendation: 'post' | 'delete' | 'review';
-  if (overallScore >= 8) {
+  if (overallScore >= 7.5) {
     recommendation = 'post';
-  } else if (overallScore >= 7) {
+  } else if (overallScore >= 6.5) {
     recommendation = 'review';
   } else {
     recommendation = 'delete';

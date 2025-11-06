@@ -474,15 +474,15 @@ async function runAutomation(request: NextRequest) {
                 recommendation: qualityScore.recommendation
               });
 
-              // Auto-delete tweets scoring below 7
-              if (qualityScore.overall < 7) {
-                console.warn(`[automation] Tweet scored ${qualityScore.overall} (< 7 threshold) - SKIPPING`);
+              // Auto-delete tweets scoring below 6.5
+              if (qualityScore.overall < 6.5) {
+                console.warn(`[automation] Tweet scored ${qualityScore.overall} (< 6.5 threshold) - SKIPPING`);
 
                 await logActivity({
                   category: 'system',
                   severity: 'warning',
                   title: 'Low-Quality Tweet Rejected',
-                  description: `Tweet scored ${qualityScore.overall}/10 - below quality threshold of 7.0`,
+                  description: `Tweet scored ${qualityScore.overall}/10 - below quality threshold of 6.5`,
                   automation_run_id: automationRunId || undefined,
                   metadata: {
                     candidate_id: candidate.id,
