@@ -16,7 +16,15 @@ export async function POST(request: NextRequest) {
     const secretHeader = request.headers.get('x-cron-secret');
     const cronSecret = process.env.CRON_SECRET;
 
-    if (cronSecret && secretHeader !== cronSecret) {
+    if (!cronSecret) {
+      console.error('[schedule-drafts] CRON_SECRET not configured');
+      return NextResponse.json(
+        { error: 'CRON_SECRET not configured on server' },
+        { status: 500 }
+      );
+    }
+
+    if (secretHeader !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

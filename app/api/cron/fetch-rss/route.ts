@@ -11,12 +11,19 @@ import { logActivity } from '@/lib/automation-logger';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Allow manual calls without auth, but require auth for automated calls
+    // Require CRON_SECRET for all calls - fail closed for security
     const secretHeader = request.headers.get('x-cron-secret');
     const cronSecret = process.env.CRON_SECRET;
 
-    // Only check auth if CRON_SECRET is set AND header is provided
-    if (cronSecret && secretHeader && secretHeader !== cronSecret) {
+    if (!cronSecret) {
+      console.error('[fetch-rss] CRON_SECRET not configured - refusing all requests');
+      return NextResponse.json(
+        { error: 'CRON_SECRET not configured on server' },
+        { status: 500 }
+      );
+    }
+
+    if (secretHeader !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

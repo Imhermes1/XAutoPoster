@@ -56,15 +56,20 @@ async function handlePost(req: Request) {
   let errorsCount = 0;
 
   try {
-    // Auth check
+    // Auth check - fail closed for security
     const secret = process.env.CRON_SECRET;
-    if (secret) {
-      const auth = req.headers.get('authorization') || '';
-      const expected = `Bearer ${secret}`;
-      if (auth !== expected) {
-        await completeAutomationRun(runId!, 'failed', { errors_count: 1 });
-        return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
-      }
+    if (!secret) {
+      console.error('[cron-post] CRON_SECRET not configured');
+      return NextResponse.json(
+        { success: false, error: 'CRON_SECRET not configured on server' },
+        { status: 500 }
+      );
+    }
+
+    const auth = req.headers.get('authorization') || '';
+    const expected = `Bearer ${secret}`;
+    if (auth !== expected) {
+      return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
     }
 
     // Check if automation is enabled
