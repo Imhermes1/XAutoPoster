@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ingestFromRSSFeeds } from '@/lib/twitter-reader';
 import { logActivity } from '@/lib/automation-logger';
+import { shouldRunAtUTCHour, getNextFetchTime } from '@/lib/timezone-utils';
 
 /**
  * Endpoint to manually fetch RSS feeds or check if it's time to fetch based on schedule
@@ -102,27 +103,21 @@ export async function GET(request: NextRequest) {
 function checkFetchSchedule(): NextResponse {
   try {
     const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const currentMinutes = hours * 60 + minutes;
+    const utcHours = now.getUTCHours();
+    const utcMinutes = now.getUTCMinutes();
 
-    // Default schedule: Every 6 hours (can be customized via env or config)
-    // Fetch at: 12am, 6am, 12pm, 6pm
+    // Default schedule: Every 6 hours at UTC hour boundaries
+    // Fetch at: 00:00 UTC, 06:00 UTC, 12:00 UTC, 18:00 UTC
     const fetchHours = [0, 6, 12, 18];
-    const shouldFetch = fetchHours.includes(hours) && minutes < 10; // Fetch in first 10 minutes of hour
+    const shouldFetch = shouldRunAtUTCHour(fetchHours); // Uses UTC hours
 
-    const nextFetchHour = fetchHours.find(h => h * 60 > currentMinutes) || fetchHours[0];
-    const nextFetchTime = new Date(now);
-    nextFetchTime.setHours(nextFetchHour, 0, 0, 0);
-    if (nextFetchHour === fetchHours[0] && nextFetchHour < hours) {
-      nextFetchTime.setDate(nextFetchTime.getDate() + 1); // Tomorrow
-    }
+    const nextFetchTime = getNextFetchTime(6); // 6-hour intervals
 
     return NextResponse.json({
       should_fetch: shouldFetch,
-      current_hour: hours,
-      current_minutes: minutes,
-      scheduled_hours: fetchHours,
+      current_utc_hour: utcHours,
+      current_utc_minutes: utcMinutes,
+      scheduled_utc_hours: fetchHours,
       next_fetch_time: nextFetchTime.toISOString()
     });
   } catch (error) {

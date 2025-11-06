@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { logActivity } from '@/lib/automation-logger';
+import { createScheduledTimeUTC } from '@/lib/timezone-utils';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -80,11 +81,6 @@ export async function POST(request: NextRequest) {
       batchMap.get(batchId)!.push(draft);
     }
 
-    // Get today's date in the configured timezone
-    const now = new Date();
-    const today = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-    today.setHours(0, 0, 0, 0);
-
     let totalScheduled = 0;
     const updates: any[] = [];
 
@@ -96,15 +92,14 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < postsInBatch; i++) {
         const timeIndex = i % postingTimes.length;
         const postingTime = postingTimes[timeIndex];
-        const [hours, minutes] = postingTime.split(':').map(Number);
 
-        // Create scheduled_for timestamp in the configured timezone
-        const scheduledDate = new Date(today);
-        scheduledDate.setHours(hours, minutes, 0, 0);
+        // Create scheduled time using proper timezone conversion
+        let scheduledDate = createScheduledTimeUTC(postingTime, timezone, 0);
+        const now = new Date();
 
         // If the time has already passed today, schedule for tomorrow
         if (scheduledDate < now) {
-          scheduledDate.setDate(scheduledDate.getDate() + 1);
+          scheduledDate = createScheduledTimeUTC(postingTime, timezone, 1);
         }
 
         const draftId = batchDrafts[i].id;

@@ -16,6 +16,12 @@ import {
 import { generatePost } from '@/lib/content-generator';
 import { scorePostQuality, getScoreStatistics } from '@/lib/post-quality-scorer';
 import { processScheduledPosts } from '@/lib/scheduled-posts-processor';
+import {
+  getTodayAtMidnightUTC,
+  createScheduledTimeUTC,
+  isTimeToPost,
+  getCurrentTimeInTimezone,
+} from '@/lib/timezone-utils';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -155,11 +161,6 @@ async function runAutomation(request: NextRequest) {
           .order('created_at', { ascending: true });
 
         if (!draftsError && drafts && drafts.length > 0) {
-          // Get today's date in the configured timezone
-          const now = new Date();
-          const today = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-          today.setHours(0, 0, 0, 0);
-
           // Group drafts by batch
           const batchMap = new Map<string | null, typeof drafts>();
           for (const draft of drafts) {
@@ -170,20 +171,21 @@ async function runAutomation(request: NextRequest) {
             batchMap.get(batchId)!.push(draft);
           }
 
-          // Schedule drafts across posting times
+          // Schedule drafts across posting times using proper timezone handling
           const updates: any[] = [];
           for (const [batchId, batchDrafts] of batchMap.entries()) {
             for (let i = 0; i < batchDrafts.length; i++) {
               const timeIndex = i % postingTimes.length;
               const postingTime = postingTimes[timeIndex];
-              const [hours, minutes] = postingTime.split(':').map(Number);
 
-              const scheduledDate = new Date(today);
-              scheduledDate.setHours(hours, minutes, 0, 0);
+              // Create scheduled time using proper timezone conversion
+              // If time has already passed today, scheduleForTomorrow
+              let scheduledDate = createScheduledTimeUTC(postingTime, timezone, 0);
+              const now = new Date();
 
-              // If time has passed today, schedule for tomorrow
               if (scheduledDate < now) {
-                scheduledDate.setDate(scheduledDate.getDate() + 1);
+                // Time has passed today, schedule for tomorrow
+                scheduledDate = createScheduledTimeUTC(postingTime, timezone, 1);
               }
 
               updates.push({
@@ -580,23 +582,13 @@ async function runAutomation(request: NextRequest) {
       });
 
       if (config && config.enabled && config.posting_times) {
-        // Convert current UTC time to the configured timezone
+        // Check if current time matches any posting time using proper timezone handling
         const timeZone = config.timezone || 'Australia/Sydney';
-        const localTime = now.toLocaleString('en-US', { timeZone, hour12: false, hour: '2-digit', minute: '2-digit' });
-        const [currentHour, currentMinute] = localTime.split(':').map(Number);
+        const shouldGenerate = isTimeToPost(config.posting_times, timeZone, 45);
 
-        console.log(`[automation] Current time in ${timeZone}: ${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
+        console.log(`[automation] Timezone: ${timeZone}`);
         console.log(`[automation] UTC time: ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`);
-
-        // Check if current time matches any posting time (within 45 min window for testing)
-        const shouldGenerate = config.posting_times.some((time: string) => {
-          const [hours, minutes] = time.split(':').map(Number);
-          const timeDiff = Math.abs((currentHour * 60 + currentMinute) - (hours * 60 + minutes));
-          const matches = timeDiff <= 45; // 45 minute window for testing
-          console.log(`[automation] Checking time ${time}: diff=${timeDiff}min, matches=${matches}`);
-          return matches;
-        });
-
+        console.log(`[automation] Posting times: ${config.posting_times.join(', ')}`);
         console.log(`[automation] Should generate new post: ${shouldGenerate}`);
 
         if (shouldGenerate) {
@@ -621,9 +613,10 @@ async function runAutomation(request: NextRequest) {
             console.log('[automation] New post generation result:', results.new_post_generation);
           }
         } else {
+          const timeZone = config.timezone || 'Australia/Sydney';
           results.new_post_generation = {
             skipped: 'Not a posting time',
-            current_time: `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')} ${config.timezone}`,
+            current_time: `${getCurrentTimeInTimezone(timeZone)} ${timeZone}`,
             posting_times: config.posting_times
           };
         }
