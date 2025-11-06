@@ -262,6 +262,7 @@ async function handlePost(req: Request) {
 
     let topicText: string | null = null;
     let manualId: string | undefined;
+    let mediaUrl: string | undefined;
 
     const manual = await getUnusedManualTopics();
     if (manual.length > 0) {
@@ -278,10 +279,12 @@ async function handlePost(req: Request) {
       if (news.length > 0) {
         const item = news[Math.floor(Math.random() * news.length)];
         topicText = `${item.title} — ${item.source} ${item.link}`.trim();
+        mediaUrl = item.imageUrl || undefined;
         await addDecisionToRun(runId!, {
           timestamp: new Date().toISOString(),
           decision: 'use_rss',
           reasoning: `Using RSS: ${item.title}`,
+          metadata: mediaUrl ? { imageUrl: mediaUrl } : undefined,
         });
       } else {
         topicText = 'Latest trends in AI, app dev, iOS, Android, and coding';
@@ -304,7 +307,17 @@ async function handlePost(req: Request) {
       source_type: manualId ? 'manual_topic' : 'rss',
     });
 
-    const result = await postToX(post);
+    let result: { success: boolean; id?: string; error?: string };
+    if (mediaUrl) {
+      const mediaUpload = await uploadMediaFromUrl(mediaUrl);
+      if (mediaUpload.success && mediaUpload.media_id) {
+        result = await postToXAdvanced({ text: post, media_ids: [mediaUpload.media_id] });
+      } else {
+        result = await postToX(post);
+      }
+    } else {
+      result = await postToX(post);
+    }
 
     if (!result.success) {
       errorsCount++;
