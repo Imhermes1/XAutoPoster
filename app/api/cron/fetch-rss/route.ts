@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ingestFromRSSFeeds } from '@/lib/twitter-reader';
-import { logActivity } from '@/lib/automation-logger';
+import { logActivity, startIngestionLog, completeIngestionLog } from '@/lib/automation-logger';
 
 /**
  * Endpoint to manually fetch RSS feeds or check if it's time to fetch based on schedule
@@ -23,10 +23,27 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
     console.log('[fetch-rss] Starting manual RSS fetch');
 
+    // Start ingestion log
+    const ingestionLogId = await startIngestionLog({
+      source_type: 'rss',
+      source_identifier: 'all-feeds',
+    });
+
     // Fetch from all RSS sources
     const result = await ingestFromRSSFeeds();
 
     const duration = Date.now() - startTime;
+
+    // Complete ingestion log
+    if (ingestionLogId) {
+      await completeIngestionLog(ingestionLogId, {
+        status: result.inserted > 0 ? 'completed' : 'completed',
+        items_found: result.total || 0,
+        items_new: result.inserted || 0,
+        items_duplicate: result.duplicates || 0,
+        items_filtered: (result.total || 0) - (result.inserted || 0) - (result.duplicates || 0),
+      });
+    }
 
     // Log activity
     await logActivity({

@@ -4,7 +4,15 @@ import { postToX, postToXAdvanced } from '@/lib/x-api';
 import { savePostHistory, getLastPostTime } from '@/lib/kv-storage';
 import { ingestFromAccountsAndKeywords, ingestFromRSSFeeds } from '@/lib/twitter-reader';
 import { fetchRecentNews } from '@/lib/rss-fetcher';
-import { startAutomationRun, completeAutomationRun, logActivity } from '@/lib/automation-logger';
+import {
+  startAutomationRun,
+  completeAutomationRun,
+  logActivity,
+  logContentAnalysis,
+  logPostGeneration,
+  startIngestionLog,
+  completeIngestionLog,
+} from '@/lib/automation-logger';
 import { generatePost } from '@/lib/content-generator';
 import { scorePostQuality, getScoreStatistics } from '@/lib/post-quality-scorer';
 
@@ -526,6 +534,19 @@ async function runAutomation(request: NextRequest) {
                 if (!queueError) {
                   generated++;
                   console.log(`[automation] Generated and ACCEPTED tweet for ${candidate.id} (score: ${qualityScore.overall})`);
+
+                  // Log to specific post generation table
+                  await logPostGeneration({
+                    topic: candidate.text.substring(0, 100),
+                    source_type: candidate.source_type,
+                    source_id: candidate.source_id,
+                    generated_text: tweetText,
+                    passed_quality_check: qualityScore.overall >= 6.5,
+                    input_context: {
+                      candidate_id: candidate.id,
+                      content_type: candidate.content_type
+                    },
+                  });
 
                   await logActivity({
                     category: 'system',
