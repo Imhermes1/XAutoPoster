@@ -16,6 +16,30 @@ import BreakingNewsModal from '@/components/BreakingNewsModal';
 
 type Tab = 'dashboard' | 'pipeline' | 'logs' | 'manual' | 'settings' | 'sources' | 'media' | 'queue' | 'analytics' | 'link-analyzer' | 'posts';
 
+const ALL_TIME_SLOTS = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+const DEFAULT_POSTING_TIMES = ['09:00', '11:00', '13:00', '15:00', '17:00', '19:00'];
+
+function sortTimes(times: string[]) {
+  return [...times].sort((a, b) => a.localeCompare(b));
+}
+
+function sanitizeTimes(times: string[], limit: number) {
+  const uniqueValid = Array.from(new Set(times.filter(t => ALL_TIME_SLOTS.includes(t))));
+  return sortTimes(uniqueValid).slice(0, Math.min(Math.max(limit, 1), ALL_TIME_SLOTS.length));
+}
+
+function buildTwoHourCadence(limit: number) {
+  const cadence: string[] = [];
+  let hour = 9;
+  const maxSelections = Math.min(limit, ALL_TIME_SLOTS.length);
+  while (cadence.length < maxSelections) {
+    cadence.push(`${String(hour).padStart(2, '0')}:00`);
+    hour = (hour + 2) % 24;
+    if (hour === 9) break; // Prevent infinite loop if limit > 12
+  }
+  return cadence.slice(0, maxSelections);
+}
+
 export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [config, setConfig] = useState<any>(null);
@@ -376,23 +400,60 @@ function DashboardTab({ config, authStatus }: { config: any; authStatus: any }) 
 function SettingsTab({ config, onUpdate }: { config: any; onUpdate: () => void }) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
+  const initialDailyLimit = config?.daily_limit || 10;
   const [enabled, setEnabled] = useState(config?.enabled ?? false);
-  const [postingTimes, setPostingTimes] = useState<string[]>(config?.posting_times || ['08:00', '10:00', '12:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00']);
+  const [dailyLimit, setDailyLimit] = useState(initialDailyLimit);
+  const [postingTimes, setPostingTimes] = useState<string[]>(sanitizeTimes(config?.posting_times || DEFAULT_POSTING_TIMES, initialDailyLimit));
   const [timezone, setTimezone] = useState(config?.timezone || 'Australia/Sydney');
-  const [dailyLimit, setDailyLimit] = useState(config?.daily_limit || 10);
   const [llmModel, setLlmModel] = useState(config?.llm_model || '');
   const [brandVoice, setBrandVoice] = useState(config?.brand_voice_instructions || '');
 
   useEffect(() => {
     if (config) {
       setEnabled(config.enabled);
-      setPostingTimes(config.posting_times || ['08:00', '10:00', '12:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00']);
+      const nextDailyLimit = config.daily_limit || 10;
+      setDailyLimit(nextDailyLimit);
+      setPostingTimes(sanitizeTimes(config.posting_times || DEFAULT_POSTING_TIMES, nextDailyLimit));
       setTimezone(config.timezone || 'Australia/Sydney');
-      setDailyLimit(config.daily_limit || 10);
       setLlmModel(config.llm_model || '');
       setBrandVoice(config.brand_voice_instructions || '');
     }
   }, [config]);
+
+  useEffect(() => {
+    setPostingTimes(prev => {
+      if (prev.length <= dailyLimit) return prev;
+      const trimmed = sanitizeTimes(prev, dailyLimit);
+      showToast('info', 'Daily limit updated', `Kept the first ${trimmed.length} slots to match the new limit.`);
+      return trimmed;
+    });
+  }, [dailyLimit, showToast]);
+
+  const slotsRemaining = Math.max(dailyLimit - postingTimes.length, 0);
+
+  const handleTimeToggle = (time: string, checked: boolean) => {
+    setPostingTimes(prev => {
+      if (checked) {
+        if (prev.includes(time)) return prev;
+        if (prev.length >= dailyLimit) {
+          showToast('warning', 'Daily limit reached', 'Increase the limit or unselect another slot first.');
+          return prev;
+        }
+        return sortTimes([...prev, time]);
+      }
+      return prev.filter(t => t !== time);
+    });
+  };
+
+  const handleAutoCadence = () => {
+    const cadence = sanitizeTimes(buildTwoHourCadence(dailyLimit), dailyLimit);
+    if (cadence.length === 0) {
+      showToast('warning', 'No slots available', 'Increase the daily limit to auto-fill a cadence.');
+      return;
+    }
+    setPostingTimes(cadence);
+    showToast('success', 'Cadence applied', `Selected ${cadence.length} slots starting at 09:00 every 2 hours.`);
+  };
 
   const saveSettings = async () => {
     setSaving(true);
@@ -487,24 +548,64 @@ function SettingsTab({ config, onUpdate }: { config: any; onUpdate: () => void }
       </div>
 
       <div style={sectionStyle}>
-        <label style={labelStyle}>Posting Times</label>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {['09:00', '12:00', '15:00', '18:00', '21:00'].map(time => (
-            <label key={time} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={postingTimes.includes(time)}
-                onChange={e => {
-                  if (e.target.checked) {
-                    setPostingTimes([...postingTimes, time].sort());
-                  } else {
-                    setPostingTimes(postingTimes.filter(t => t !== time));
-                  }
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Posting Times</label>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+              {postingTimes.length}/{dailyLimit} slots selected — {slotsRemaining === 0 ? 'limit reached' : `${slotsRemaining} remaining`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAutoCadence}
+            style={{
+              padding: '10px 18px',
+              backgroundColor: '#111827',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Auto-fill 2h cadence
+          </button>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
+            gap: 12,
+            marginTop: 16,
+          }}
+        >
+          {ALL_TIME_SLOTS.map(time => {
+            const checked = postingTimes.includes(time);
+            return (
+              <label
+                key={time}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 13,
+                  padding: '8px 10px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  backgroundColor: checked ? '#eef2ff' : '#fff',
                 }}
-              />
-              {time}
-            </label>
-          ))}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!checked && postingTimes.length >= dailyLimit}
+                  onChange={e => handleTimeToggle(time, e.target.checked)}
+                />
+                {time}
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -531,9 +632,9 @@ function SettingsTab({ config, onUpdate }: { config: any; onUpdate: () => void }
         <input
           type="number"
           min={1}
-          max={10}
+          max={24}
           value={dailyLimit}
-          onChange={e => setDailyLimit(parseInt(e.target.value) || 2)}
+          onChange={e => setDailyLimit(Math.min(24, Math.max(1, parseInt(e.target.value) || 1)))}
           style={{ ...inputStyle, width: 100 }}
         />
         <p style={{ fontSize: 13, color: '#6b7280', margin: '8px 0 0 0' }}>
