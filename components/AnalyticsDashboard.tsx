@@ -46,27 +46,42 @@ export default function AnalyticsDashboard() {
         fetch('/api/admin/activity'),
       ]);
 
-      if (!healthRes.ok || !activityRes.ok) throw new Error('Failed to fetch analytics');
+      if (!healthRes.ok) {
+        console.warn('Health check failed:', healthRes.status);
+      }
+      if (!activityRes.ok) {
+        console.warn('Activity fetch failed:', activityRes.status);
+      }
 
-      const health = await healthRes.json();
-      const activity = await activityRes.json();
+      const health = healthRes.ok ? await healthRes.json() : { status: 'unknown', spacing: 0, variety: 0, ready: false };
+      const activity = activityRes.ok ? await activityRes.json() : { activities: [] };
 
-      // Calculate stats
+      // Calculate stats from activities
       const posts = activity.activities || activity.activity || [];
+
+      // Transform posts to ensure required properties exist
+      const transformedPosts = posts.map((p: any) => ({
+        ...p,
+        title: p.title || p.event_type || 'Activity',
+        description: p.description || p.post_text || '',
+        severity: p.severity || (p.status === 'error' ? 'error' : p.status === 'success' ? 'success' : 'warning'),
+        category: p.category || p.event_type,
+      }));
+
       const stats = {
-        totalPosted: posts.filter((p: any) => p.category === 'posting' && p.severity === 'success').length,
-        totalScheduled: posts.filter((p: any) => p.category === 'posting').length,
-        totalFailed: posts.filter((p: any) => p.severity === 'error').length,
-        averageScore: posts.length
+        totalPosted: transformedPosts.filter((p: any) => p.severity === 'success').length,
+        totalScheduled: transformedPosts.filter((p: any) => p.event_type?.includes('post') || p.category?.includes('post')).length,
+        totalFailed: transformedPosts.filter((p: any) => p.severity === 'error').length,
+        averageScore: transformedPosts.length
           ? Math.round(
-              posts.filter((p: any) => p.metadata?.score).reduce((sum: number, p: any) => sum + (p.metadata?.score || 0), 0) /
-                posts.filter((p: any) => p.metadata?.score).length
+              transformedPosts.filter((p: any) => p.metadata?.score).reduce((sum: number, p: any) => sum + (p.metadata?.score || 0), 0) /
+                Math.max(1, transformedPosts.filter((p: any) => p.metadata?.score).length)
             )
           : 0,
-        lastPostTime: posts[0]?.created_at,
+        lastPostTime: transformedPosts[0]?.created_at || transformedPosts[0]?.timestamp,
       };
 
-      setData({ health, activityStream: posts, stats });
+      setData({ health, activityStream: transformedPosts, stats });
       setLoading(false);
     } catch (error) {
       console.error('Error fetching analytics:', error);
