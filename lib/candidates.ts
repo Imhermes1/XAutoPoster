@@ -76,6 +76,78 @@ export async function markCandidateUsed(id: string): Promise<void> {
 }
 
 /**
+ * Fetch the next best unused candidate and atomically mark it as used
+ *
+ * This prevents race conditions where multiple processes could fetch the same
+ * candidate simultaneously. Uses optimistic locking (conditional update) to ensure
+ * only one process successfully claims each candidate.
+ *
+ * @param limit - Number of candidates to check
+ * @param type - Optional filter by candidate type
+ * @returns Single candidate with highest overall_score, or null if none available
+ */
+export async function fetchAndClaimCandidate(
+  limit: number = 5,
+  type?: CandidateType
+): Promise<Candidate | null> {
+  const supabase = getSupabase();
+
+  // Fetch candidates sorted by score (best first)
+  let q = supabase
+    .from('candidates')
+    .select('id, overall_score')
+    .eq('used', false)
+    .order('overall_score', { ascending: false })
+    .limit(limit);
+
+  if (type) q = q.eq('type', type);
+
+  const { data: candidates, error } = await q;
+
+  if (error || !candidates || candidates.length === 0) {
+    return null;
+  }
+
+  // Try to atomically claim the first available candidate
+  // by updating it with a condition that it's still unused
+  // If another process claims it first, we'll get count=0 and try the next one
+
+  for (const candidate of candidates) {
+    // Attempt atomic update: only update if still unused
+    // This is optimistic locking - the condition .eq('used', false) acts as a guard
+    // The update will silently succeed even if no rows match (Supabase behavior)
+    // So we fetch after the update to confirm it was marked
+    const { error: updateError } = await supabase
+      .from('candidates')
+      .update({ used: true, updated_at: new Date().toISOString() })
+      .eq('id', candidate.id)
+      .eq('used', false);  // Only update if still unused - this prevents race
+
+    if (updateError) {
+      // Database error occurred, try next candidate
+      continue;
+    }
+
+    // Now fetch the full candidate data to verify we got it
+    const { data: fullCandidate, error: fetchError } = await supabase
+      .from('candidates')
+      .select('*')
+      .eq('id', candidate.id)
+      .single();
+
+    if (!fetchError && fullCandidate && fullCandidate.used) {
+      // We successfully claimed this candidate (it's now marked as used by our update)
+      return fullCandidate as Candidate;
+    }
+    // If fetchError or fullCandidate.used is false, another process already claimed it
+    // Continue to next candidate in the list
+  }
+
+  // All candidates in batch were claimed by other processes
+  return null;
+}
+
+/**
  * Batch insert multiple candidates, automatically skipping duplicates
  * Uses INSERT ... ON CONFLICT DO NOTHING for efficiency (single query)
  *

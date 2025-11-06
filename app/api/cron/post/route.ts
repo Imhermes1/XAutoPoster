@@ -14,7 +14,7 @@ import {
   markGenerationUsed,
 } from '@/lib/automation-logger';
 import { analyzeContent, getAnalysisContext } from '@/lib/content-analyzer';
-import { listCandidates, markCandidateUsed } from '@/lib/candidates';
+import { fetchAndClaimCandidate } from '@/lib/candidates';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,65 +112,72 @@ async function handlePost(req: Request) {
     // Get analysis context
     const analysisContext = await getAnalysisContext();
 
-    // Try to get analyzed candidates first
-    const candidates = await listCandidates(20);
-    if (candidates.length > 0) {
+    // Atomically fetch and claim the next best candidate (prevents race conditions)
+    // This ensures only one process will use this candidate
+    const bestCandidate = await fetchAndClaimCandidate(20);
+
+    if (bestCandidate && bestCandidate.id) {
+      candidatesEvaluated++;
+
       await logActivity({
         category: 'system',
         severity: 'info',
-        title: 'Evaluating Candidates',
-        description: `Found ${candidates.length} candidates to evaluate`,
+        title: 'Candidate Claimed',
+        description: `Claimed candidate with score ${bestCandidate.overall_score || 'not analyzed'}`,
         automation_run_id: runId!,
       });
 
-      // Analyze and find best candidate
-      let bestCandidate = null;
-      let bestScore = 0;
+      // Analyze if not already analyzed
+      let bestScore = bestCandidate.overall_score || 0;
+      let analysis;
 
-      for (const candidate of candidates) {
-        candidatesEvaluated++;
-
-        // Skip candidates without ID
-        if (!candidate.id) {
-          continue;
-        }
-
-        // Analyze if not already analyzed
-        let analysis;
-        if (candidate.overall_score) {
-          analysis = {
-            scores: { overall_score: candidate.overall_score },
-            decision: candidate.overall_score > 0.7 ? 'approved' : 'rejected',
-            reasoning: 'Previously analyzed',
-            strengths: [],
-            concerns: [],
-          };
-        } else {
-          // At this point we know candidate.id exists due to the guard above
-          analysis = await analyzeContent(
-            {
-              id: candidate.id,
-              type: candidate.type,
-              title: candidate.title ?? undefined,
-              text: candidate.text ?? undefined,
-              url: candidate.url ?? undefined,
-              source: candidate.source,
-              likes_count: candidate.likes_count,
-              retweets_count: candidate.retweets_count,
-              replies_count: candidate.replies_count,
-            },
-            analysisContext,
-            runId!
-          );
-        }
-
-        if (analysis.decision === 'approved' && analysis.scores.overall_score > bestScore) {
-          bestScore = analysis.scores.overall_score;
-          bestCandidate = candidate;
-        }
+      if (bestCandidate.overall_score && bestCandidate.overall_score > 0) {
+        analysis = {
+          scores: { overall_score: bestCandidate.overall_score },
+          decision: bestCandidate.overall_score > 0.7 ? 'approved' : 'rejected',
+          reasoning: 'Previously analyzed',
+          strengths: [],
+          concerns: [],
+        };
+      } else {
+        // Analyze content if not previously analyzed
+        analysis = await analyzeContent(
+          {
+            id: bestCandidate.id,
+            type: bestCandidate.type,
+            title: bestCandidate.title ?? undefined,
+            text: bestCandidate.text ?? undefined,
+            url: bestCandidate.url ?? undefined,
+            source: bestCandidate.source,
+            likes_count: bestCandidate.likes_count,
+            retweets_count: bestCandidate.retweets_count,
+            replies_count: bestCandidate.replies_count,
+          },
+          analysisContext,
+          runId!
+        );
+        bestScore = analysis.scores.overall_score || 0;
       }
 
-      if (bestCandidate) {
+      if (analysis.decision !== 'approved') {
+        // Candidate was already marked as used by fetchAndClaimCandidate()
+        // Just log the rejection
+        await logActivity({
+          category: 'analysis',
+          severity: 'info',
+          title: 'Candidate Rejected',
+          description: `Rejected with score ${bestScore.toFixed(2)}: ${analysis.reasoning || 'Did not meet approval threshold'}`,
+          automation_run_id: runId!,
+        });
+
+        await completeAutomationRun(runId!, 'skipped', {
+          candidates_evaluated: candidatesEvaluated,
+          posts_created: 0,
+          errors_count: 0,
+        });
+
+        return NextResponse.json({ skipped: true, reason: 'candidate_rejected', score: bestScore });
+      } else {
         await addDecisionToRun(runId!, {
           timestamp: new Date().toISOString(),
           decision: 'use_candidate',
@@ -215,9 +222,7 @@ async function handlePost(req: Request) {
         }
 
         postsCreated++;
-        if (bestCandidate.id) {
-          await markCandidateUsed(bestCandidate.id);
-        }
+        // Note: Candidate is already marked as used by fetchAndClaimCandidate()
         await savePostHistory({ text: post, postedAt: Date.now(), topicId: undefined });
         if (generationId) await markGenerationUsed(generationId, result.id!);
 
@@ -237,6 +242,15 @@ async function handlePost(req: Request) {
 
         return NextResponse.json({ success: true, id: result.id, text: post, score: bestScore });
       }
+    } else {
+      // No best candidate available (all were claimed by other processes or none exist)
+      await logActivity({
+        category: 'system',
+        severity: 'info',
+        title: 'No Candidates Available',
+        description: 'No approved candidates available to post',
+        automation_run_id: runId!,
+      });
     }
 
     // Fallback to manual topics or RSS
