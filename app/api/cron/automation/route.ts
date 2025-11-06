@@ -538,13 +538,13 @@ async function runAutomation(request: NextRequest) {
                   // Log to specific post generation table
                   await logPostGeneration({
                     topic: candidate.text.substring(0, 100),
-                    source_type: candidate.source_type,
-                    source_id: candidate.source_id,
+                    source_type: candidate.source as string,
+                    source_id: candidate.id,
                     generated_text: tweetText,
                     passed_quality_check: qualityScore.overall >= 6.5,
                     input_context: {
                       candidate_id: candidate.id,
-                      content_type: candidate.content_type
+                      content_type: candidate.type
                     },
                   });
 
