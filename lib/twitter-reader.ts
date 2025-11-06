@@ -1,5 +1,5 @@
 import { oauthFetch } from '@/lib/x-api';
-import { addCandidateIfNew } from '@/lib/candidates';
+import { addCandidateIfNew, addCandidatesIfNew, Candidate } from '@/lib/candidates';
 import { getSupabase } from '@/lib/supabase';
 import { startIngestionLog, completeIngestionLog, logActivity } from '@/lib/automation-logger';
 import { fetchRecentNews } from '@/lib/rss-fetcher';
@@ -111,37 +111,31 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
       }
 
       const tweets = normalize(payload);
-      let newCount = 0;
-      let dupCount = 0;
 
-      for (const tw of tweets) {
-        const result = await addCandidateIfNew({
-          type: 'tweet',
-          source: acc.handle,
-          external_id: tw.id,
-          url: `https://x.com/${acc.handle.replace(/^@/, '')}/status/${tw.id}`,
-          text: tw.text,
-          image_url: tw.image_url,
-          likes_count: tw.likes_count,
-          retweets_count: tw.retweets_count,
-          replies_count: tw.replies_count,
-        });
-        if (result) {
-          newCount++;
-          inserted++;
-        } else {
-          dupCount++;
-          duplicates++;
-        }
-      }
+      // Convert tweets to candidate objects for batch insert
+      const candidates: Candidate[] = tweets.map((tw: any) => ({
+        type: 'tweet' as const,
+        source: acc.handle,
+        external_id: tw.id,
+        url: `https://x.com/${acc.handle.replace(/^@/, '')}/status/${tw.id}`,
+        text: tw.text,
+        image_url: tw.image_url,
+        likes_count: tw.likes_count,
+        retweets_count: tw.retweets_count,
+        replies_count: tw.replies_count,
+      }));
 
+      // Batch insert all candidates (skips duplicates automatically)
+      const result = await addCandidatesIfNew(candidates);
+      inserted += result.inserted;
+      duplicates += result.skipped;
       totalFound += tweets.length;
 
       await completeIngestionLog(logId!, {
         status: 'completed',
         items_found: tweets.length,
-        items_new: newCount,
-        items_duplicate: dupCount,
+        items_new: result.inserted,
+        items_duplicate: result.skipped,
       });
     } catch (error: any) {
       await completeIngestionLog(logId!, {
@@ -185,37 +179,31 @@ export async function ingestFromAccountsAndKeywords(): Promise<{ inserted: numbe
       }
 
       const tweets = normalize(payload);
-      let newCount = 0;
-      let dupCount = 0;
 
-      for (const tw of tweets) {
-        const result = await addCandidateIfNew({
-          type: 'tweet',
-          source: kw.query,
-          external_id: tw.id,
-          url: `https://x.com/i/web/status/${tw.id}`,
-          text: tw.text,
-          image_url: tw.image_url,
-          likes_count: tw.likes_count,
-          retweets_count: tw.retweets_count,
-          replies_count: tw.replies_count,
-        });
-        if (result) {
-          newCount++;
-          inserted++;
-        } else {
-          dupCount++;
-          duplicates++;
-        }
-      }
+      // Convert tweets to candidate objects for batch insert
+      const candidates: Candidate[] = tweets.map((tw: any) => ({
+        type: 'tweet' as const,
+        source: kw.query,
+        external_id: tw.id,
+        url: `https://x.com/i/web/status/${tw.id}`,
+        text: tw.text,
+        image_url: tw.image_url,
+        likes_count: tw.likes_count,
+        retweets_count: tw.retweets_count,
+        replies_count: tw.replies_count,
+      }));
 
+      // Batch insert all candidates (skips duplicates automatically)
+      const result = await addCandidatesIfNew(candidates);
+      inserted += result.inserted;
+      duplicates += result.skipped;
       totalFound += tweets.length;
 
       await completeIngestionLog(logId!, {
         status: 'completed',
         items_found: tweets.length,
-        items_new: newCount,
-        items_duplicate: dupCount,
+        items_new: result.inserted,
+        items_duplicate: result.skipped,
       });
     } catch (error: any) {
       await completeIngestionLog(logId!, {
@@ -268,24 +256,21 @@ export async function ingestFromRSSFeeds(): Promise<{ inserted: number }> {
       return { inserted };
     }
 
-    // Add each item as a candidate if it's new
-    for (const item of newsItems) {
-      const result = await addCandidateIfNew({
-        type: 'rss',
-        source: item.source,
-        external_id: item.link, // Use URL as unique identifier
-        url: item.link,
-        title: item.title,
-        text: item.contentSnippet || '',
-        image_url: item.imageUrl,
-      });
+    // Convert all RSS items to candidate objects for batch insert
+    const candidates: Candidate[] = newsItems.map((item: any) => ({
+      type: 'rss' as const,
+      source: item.source,
+      external_id: item.link, // Use URL as unique identifier
+      url: item.link,
+      title: item.title,
+      text: item.contentSnippet || '',
+      image_url: item.imageUrl,
+    }));
 
-      if (result) {
-        inserted++;
-      } else {
-        duplicates++;
-      }
-    }
+    // Batch insert all candidates (skips duplicates automatically)
+    const result = await addCandidatesIfNew(candidates);
+    inserted = result.inserted;
+    duplicates = result.skipped;
 
     console.log(`[ingestFromRSSFeeds] Added ${inserted} new items, ${duplicates} duplicates`);
 

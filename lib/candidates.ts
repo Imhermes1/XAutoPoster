@@ -74,3 +74,62 @@ export async function markCandidateUsed(id: string): Promise<void> {
   const { error } = await supabase.from('candidates').update({ used: true }).eq('id', id);
   if (error) throw error;
 }
+
+/**
+ * Batch insert multiple candidates, automatically skipping duplicates
+ * Uses INSERT ... ON CONFLICT DO NOTHING for efficiency (single query)
+ *
+ * @param candidates - Array of candidates to insert
+ * @returns Object with inserted count and skipped count
+ */
+export async function addCandidatesIfNew(candidates: Candidate[]): Promise<{ inserted: number; skipped: number }> {
+  if (candidates.length === 0) {
+    return { inserted: 0, skipped: 0 };
+  }
+
+  const supabase = getSupabase();
+
+  // First, get all external_ids that already exist
+  const externalIds = candidates.map(c => c.external_id);
+  const { data: existing } = await supabase
+    .from('candidates')
+    .select('external_id')
+    .in('external_id', externalIds);
+
+  const existingIds = new Set((existing || []).map(e => e.external_id));
+  const toInsert = candidates.filter(c => !existingIds.has(c.external_id));
+
+  if (toInsert.length === 0) {
+    return { inserted: 0, skipped: candidates.length };
+  }
+
+  // Batch insert all new candidates in a single query
+  const rows = toInsert.map(c => ({
+    type: c.type,
+    source: c.source,
+    external_id: c.external_id,
+    url: c.url ?? null,
+    title: c.title ?? null,
+    text: c.text ?? null,
+    image_url: c.image_url ?? null,
+    fetched_at: c.fetched_at ?? new Date().toISOString(),
+    used: c.used ?? false,
+    likes_count: c.likes_count ?? 0,
+    retweets_count: c.retweets_count ?? 0,
+    replies_count: c.replies_count ?? 0,
+  }));
+
+  const { error } = await supabase
+    .from('candidates')
+    .insert(rows);
+
+  if (error) {
+    console.error('[addCandidatesIfNew] Insert error:', error);
+    return { inserted: 0, skipped: candidates.length };
+  }
+
+  return {
+    inserted: toInsert.length,
+    skipped: existingIds.size
+  };
+}
