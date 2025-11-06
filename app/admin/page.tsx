@@ -112,7 +112,7 @@ export default function AdminPage() {
         fetch('/api/admin/candidates?limit=20').then(r => r.json()).catch(() => ({ items: [] })),
         fetch('/api/admin/secrets').then(r => r.json()).catch(() => ({})),
       ]);
-      setSources(s.sources || []);
+      setSources(s.data || s.sources || []);
       setTopics(t.topics || []);
       setHistory(h.items || []);
       setConfig(c.config || null);
