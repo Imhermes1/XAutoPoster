@@ -52,16 +52,16 @@ export async function analyzeContent(
   const startTime = Date.now();
 
   try {
-    // Get LLM configuration
+    // Get LLM configuration (support both LLM_MODEL and legacy OPENROUTER_MODEL)
     const apiKey = process.env.OPENROUTER_API_KEY;
-    const model = process.env.LLM_MODEL;
+    const model = process.env.LLM_MODEL || process.env.OPENROUTER_MODEL;
 
     if (!apiKey) {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
 
     if (!model) {
-      throw new Error('LLM_MODEL not configured. Please set it via environment variable or configure in Settings.');
+      throw new Error('LLM_MODEL not configured. Please set LLM_MODEL env var or configure in Settings.');
     }
 
     const openai = new OpenAI({

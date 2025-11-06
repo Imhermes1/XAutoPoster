@@ -55,6 +55,23 @@ async function getAutomationConfig() {
  * to work within Vercel's free tier limit of 1 cron job.
  */
 async function runAutomation(request: NextRequest) {
+  // AUTH CHECK - fail closed for security
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.error('[automation] CRON_SECRET not configured');
+    return NextResponse.json(
+      { success: false, error: 'CRON_SECRET not configured on server' },
+      { status: 500 }
+    );
+  }
+
+  const auth = request.headers.get('authorization') || '';
+  const expected = `Bearer ${secret}`;
+  if (auth !== expected) {
+    console.warn('[automation] Unauthorized request blocked');
+    return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+  }
+
   let automationRunId: string | null = null;
 
   try {
@@ -608,7 +625,17 @@ async function runAutomation(request: NextRequest) {
           } else {
             // Import the handler from /api/cron/post dynamically
             const { GET: postHandler } = await import('../post/route');
-            const response = await postHandler(request);
+
+            // Create authenticated request with CRON_SECRET for internal call
+            const authenticatedRequest = new NextRequest(request.url, {
+              method: 'GET',
+              headers: new Headers({
+                ...Object.fromEntries(request.headers.entries()),
+                'authorization': `Bearer ${secret}`,
+              }),
+            });
+
+            const response = await postHandler(authenticatedRequest);
             results.new_post_generation = await response.json();
             console.log('[automation] New post generation result:', results.new_post_generation);
           }
