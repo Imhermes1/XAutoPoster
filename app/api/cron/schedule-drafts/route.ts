@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     // Get all draft posts that haven't been scheduled yet
     const { data: drafts, error: draftsError } = await supabase
       .from('bulk_post_queue')
-      .select('id, created_at, batch_id')
+      .select('id, created_at, batch_id, post_text')
       .eq('status', 'draft')
       .is('scheduled_for', null)
       .order('created_at', { ascending: true });
@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
         updates.push({
           id: draftId,
           batch_id: batchDrafts[i].batch_id,
+          post_text: batchDrafts[i].post_text,
           scheduled_for: scheduledDate.toISOString(),
           status: 'pending'
         });
@@ -116,14 +117,15 @@ export async function POST(request: NextRequest) {
 
     // Batch update all scheduled posts
     if (updates.length > 0) {
+      console.log('[schedule-drafts] Attempting to upsert', updates.length, 'posts:', JSON.stringify(updates[0]));
       const { error: updateError } = await supabase
         .from('bulk_post_queue')
         .upsert(updates, { onConflict: 'id' });
 
       if (updateError) {
-        console.error('Failed to schedule drafts:', updateError);
+        console.error('[schedule-drafts] Upsert failed:', updateError);
         return NextResponse.json(
-          { error: 'Failed to schedule drafts' },
+          { error: 'Failed to schedule drafts', details: JSON.stringify(updateError) },
           { status: 500 }
         );
       }
