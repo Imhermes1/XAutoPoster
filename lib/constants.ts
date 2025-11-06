@@ -96,3 +96,14 @@ export const DEFAULT_POSTING_TIMES = process.env.POSTING_TIMES || '9,13,18';
 export const RANDOMIZE_MINUTES = Number(process.env.RANDOMIZE_MINUTES || '15');
 export const DAILY_POST_LIMIT = Number(process.env.DAILY_POST_LIMIT || '2');
 
+// Automation and processing constants
+export const QUALITY_THRESHOLD_DEFAULT = 6.0; // Minimum quality score to post (out of 10)
+export const POST_WINDOW_MINUTES = 45; // Time window for testing cron schedules
+export const RSS_FEED_TIMEOUT_MS = 10000; // 10-second timeout per RSS feed
+export const MAX_MEDIA_SIZE_MB = 15; // Twitter/X media size limit in MB
+export const MAX_CONTENT_LENGTH_CHARS = 2000; // Max chars to send to LLM for analysis
+export const OAUTH_MAX_RETRIES = 3; // OAuth token refresh retry attempts
+export const OAUTH_RETRY_DELAYS_MS = [1000, 2000, 4000]; // Exponential backoff delays
+export const POST_PROCESSING_DELAY_MS = 2000; // Delay between posting to avoid rate limiting
+export const RECENT_ACTIVITY_LIMIT = 50; // Default limit for activity log queries
+

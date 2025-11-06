@@ -1,5 +1,5 @@
 import Parser from 'rss-parser';
-import { RSS_FEEDS } from './constants';
+import { RSS_FEEDS, RSS_FEED_TIMEOUT_MS } from './constants';
 import { getSupabase } from '@/lib/supabase';
 
 const parser = new Parser();
@@ -40,14 +40,12 @@ export async function fetchRecentNews(): Promise<FeedItem[]> {
         ...RSS_FEEDS.appDev,
       ];
 
-  const FEED_TIMEOUT_MS = 10000; // 10 second timeout per feed
-
   for (const feedUrl of feedUrls) {
     try {
       // Wrap fetch in Promise.race with timeout
       const feedPromise = parser.parseURL(feedUrl);
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Feed fetch timeout (${FEED_TIMEOUT_MS}ms)`)), FEED_TIMEOUT_MS)
+        setTimeout(() => reject(new Error(`Feed fetch timeout (${RSS_FEED_TIMEOUT_MS}ms)`)), RSS_FEED_TIMEOUT_MS)
       );
 
       const feed = await Promise.race([feedPromise, timeoutPromise]);
