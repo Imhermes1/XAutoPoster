@@ -43,6 +43,8 @@ export default function AdminPage() {
 
   const [newUrl, setNewUrl] = useState('');
   const [newCat, setNewCat] = useState('');
+  const [addSourceMessage, setAddSourceMessage] = useState('');
+  const [addingSource, setAddingSource] = useState(false);
   const [newTopic, setNewTopic] = useState('');
   const [twitterUsername, setTwitterUsername] = useState('');
   const [convertingTwitter, setConvertingTwitter] = useState(false);
@@ -132,15 +134,32 @@ export default function AdminPage() {
   }, []);
 
   const addSource = async () => {
-    if (!newUrl) return;
-    await fetch('/api/admin/sources', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: newUrl, category: newCat }),
-    });
-    setNewUrl('');
-    setNewCat('');
-    refresh();
+    if (!newUrl) {
+      setAddSourceMessage('❌ URL is required');
+      return;
+    }
+    setAddingSource(true);
+    setAddSourceMessage('');
+    try {
+      const res = await fetch('/api/admin/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: newUrl, category: newCat }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to add source');
+      }
+      setAddSourceMessage('✅ Source added successfully');
+      setNewUrl('');
+      setNewCat('');
+      refresh();
+      setTimeout(() => setAddSourceMessage(''), 5000);
+    } catch (error) {
+      setAddSourceMessage(`❌ ${String(error)}`);
+    } finally {
+      setAddingSource(false);
+    }
   };
 
   const convertTwitterToRss = async () => {
@@ -937,7 +956,14 @@ export default function AdminPage() {
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexDirection: 'column' }}>
             <input placeholder="Feed URL" value={newUrl} onChange={e => setNewUrl(e.target.value)} style={inputStyle} />
             <input placeholder="Category (optional)" value={newCat} onChange={e => setNewCat(e.target.value)} style={inputStyle} />
-            <button onClick={addSource} style={buttonStyle}>Add Source</button>
+            <button onClick={addSource} disabled={addingSource} style={{ ...buttonStyle, opacity: addingSource ? 0.6 : 1, cursor: addingSource ? 'not-allowed' : 'pointer' }}>
+              {addingSource ? 'Adding...' : 'Add Source'}
+            </button>
+            {addSourceMessage && (
+              <div style={{ fontSize: 12, padding: 6, backgroundColor: 'white', borderRadius: 3 }}>
+                {addSourceMessage}
+              </div>
+            )}
           </div>
 
           {/* Sources List */}
