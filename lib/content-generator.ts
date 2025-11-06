@@ -115,7 +115,21 @@ export async function generatePost(
     ? `${brandVoice}\n\nADDITIONAL INSTRUCTIONS FOR THIS POST:\n${customInstructions}`
     : brandVoice;
 
-  const prompt = `${instructions}\n\nTopic/News: ${topic}\n${context ? `Additional context: ${context}` : ''}\n\nGenerate a single engaging X post (max 280 characters, but aim for 200-260 for impact).\nReturn ONLY the post text, no explanations.\nMake it shareable, informative, and in your voice.`;
+  const prompt = `${instructions}\n\nTopic/News: ${topic}\n${context ? `Additional context: ${context}` : ''}\n\nGenerate a single engaging X post (max 280 characters, but aim for 200-260 for impact).
+
+CRITICAL ENGAGEMENT RULES:
+1. Start with a hook that grabs attention (surprising fact, question, or bold statement)
+2. Include AT LEAST ONE of:
+   - A direct question to invite responses
+   - Actionable insight or tip
+   - Surprising stat or data point
+   - Personal experience or perspective
+3. Use conversational, natural language (contractions like "don't", "it's" are good)
+4. Be specific and concrete - avoid generic statements
+5. End with something that makes people want to comment or share
+
+Return ONLY the post text, no explanations.
+Make it shareable, informative, opinionated, and in your voice.`;
 
   console.log('[generatePost] Prompt length:', prompt.length, 'characters');
   console.log('[generatePost] Has custom instructions:', !!customInstructions);
