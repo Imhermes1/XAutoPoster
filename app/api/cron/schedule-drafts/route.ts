@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
         const draftId = batchDrafts[i].id;
         updates.push({
           id: draftId,
+          batch_id: batchDrafts[i].batch_id,
           scheduled_for: scheduledDate.toISOString(),
           status: 'pending'
         });
