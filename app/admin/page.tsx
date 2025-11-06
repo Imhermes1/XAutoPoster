@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 type Source = { id: string; url: string; category?: string | null };
 type Topic = { id: string; topic: string; remaining?: number };
@@ -63,6 +64,18 @@ export default function AdminPage() {
   const [brandVoiceInstructions, setBrandVoiceInstructions] = useState('');
   const [brandVoicePreset, setBrandVoicePreset] = useState<string>('');
   const [isEditingBrandVoice, setIsEditingBrandVoice] = useState(false);
+
+  // Confirmation dialog states
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: 'source' | 'media' | 'account' | 'keyword' | 'oauth2' | 'oauth1' | null;
+    id?: string;
+    name?: string;
+  }>({ type: null });
+  const [deleting, setDeleting] = useState(false);
+  const [generateConfirm, setGenerateConfirm] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [ingestConfirm, setIngestConfirm] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
 
   const brandVoicePresets = {
     'default': 'Default Developer Voice',
@@ -177,9 +190,25 @@ export default function AdminPage() {
     }
   };
 
-  const delSource = async (id: string) => {
-    await fetch(`/api/admin/sources/${id}`, { method: 'DELETE' });
-    refresh();
+  const delSource = (id: string, url: string) => {
+    setDeleteConfirm({ type: 'source', id, name: url });
+  };
+
+  const confirmDeleteSource = async () => {
+    if (!deleteConfirm.id) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/sources/${deleteConfirm.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      refresh();
+      setDeleteConfirm({ type: null });
+    } catch (e: any) {
+      alert(`Error deleting source: ${e.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const addTopic = async () => {
@@ -267,8 +296,13 @@ export default function AdminPage() {
     setIsEditingBrandVoice(false);
   };
 
-  const generateBulkPosts = async () => {
+  const requestGenerateBulkPosts = () => {
     if (!bulkTopic || bulkCount < 1) return;
+    setGenerateConfirm(true);
+  };
+
+  const confirmGenerateBulkPosts = async () => {
+    setGenerating(true);
     try {
       const response = await fetch('/api/admin/bulk/generate', {
         method: 'POST',
@@ -280,14 +314,20 @@ export default function AdminPage() {
         }),
       });
       const result = await response.json();
-      setBulkTopic('');
-      setBulkCount(1);
-      if (result.success) {
+      if (response.ok && result.success) {
         alert(`Generated ${bulkCount} posts!`);
+        setBulkTopic('');
+        setBulkCount(1);
+        refresh();
+      } else {
+        throw new Error(result.error || 'Generation failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Bulk generation failed:', error);
-      alert('Failed to generate posts');
+      alert(`Failed to generate posts: ${error.message}`);
+    } finally {
+      setGenerating(false);
+      setGenerateConfirm(false);
     }
   };
 
@@ -310,9 +350,25 @@ export default function AdminPage() {
     }
   };
 
-  const deleteMedia = async (id: string) => {
-    await fetch(`/api/admin/media/${id}`, { method: 'DELETE' });
-    refresh();
+  const deleteMedia = (id: string, fileName: string) => {
+    setDeleteConfirm({ type: 'media', id, name: fileName });
+  };
+
+  const confirmDeleteMedia = async () => {
+    if (!deleteConfirm.id) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/media/${deleteConfirm.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      refresh();
+      setDeleteConfirm({ type: null });
+    } catch (e: any) {
+      alert(`Error deleting media: ${e.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const addAccount = async () => {
@@ -329,19 +385,66 @@ export default function AdminPage() {
     refresh();
   };
 
-  const removeAccount = async (id: string) => {
-    await fetch(`/api/admin/x/accounts/${id}`, { method: 'DELETE' });
-    refresh();
+  const removeAccount = (id: string, handle: string) => {
+    setDeleteConfirm({ type: 'account', id, name: handle });
   };
 
-  const removeKeyword = async (id: string) => {
-    await fetch(`/api/admin/x/keywords/${id}`, { method: 'DELETE' });
-    refresh();
+  const confirmRemoveAccount = async () => {
+    if (!deleteConfirm.id) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/x/accounts/${deleteConfirm.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      refresh();
+      setDeleteConfirm({ type: null });
+    } catch (e: any) {
+      alert(`Error removing account: ${e.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
-  const ingestNow = async () => {
-    await fetch('/api/admin/candidates/ingest', { method: 'POST' });
-    refresh();
+  const removeKeyword = (id: string, keyword: string) => {
+    setDeleteConfirm({ type: 'keyword', id, name: keyword });
+  };
+
+  const confirmRemoveKeyword = async () => {
+    if (!deleteConfirm.id) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/x/keywords/${deleteConfirm.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      refresh();
+      setDeleteConfirm({ type: null });
+    } catch (e: any) {
+      alert(`Error removing keyword: ${e.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const requestIngestNow = () => {
+    setIngestConfirm(true);
+  };
+
+  const confirmIngestNow = async () => {
+    setIngesting(true);
+    try {
+      const res = await fetch('/api/admin/candidates/ingest', {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Ingest failed');
+      refresh();
+      setIngestConfirm(false);
+    } catch (e: any) {
+      alert(`Error ingesting candidates: ${e.message}`);
+    } finally {
+      setIngesting(false);
+    }
   };
 
   const aiQuoteCandidate = async (id: string) => {
@@ -419,9 +522,26 @@ export default function AdminPage() {
     refresh();
   };
 
-  const clearOAuth2 = async () => {
-    await fetch('/api/admin/secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clear_oauth2: true }) });
-    refresh();
+  const requestClearOAuth2 = () => {
+    setDeleteConfirm({ type: 'oauth2' });
+  };
+
+  const confirmClearOAuth2 = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/admin/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clear_oauth2: true }),
+      });
+      if (!res.ok) throw new Error('Clear failed');
+      refresh();
+      setDeleteConfirm({ type: null });
+    } catch (e: any) {
+      alert(`Error clearing OAuth2: ${e.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const connectOAuth2 = () => {
@@ -455,7 +575,7 @@ export default function AdminPage() {
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button onClick={connectOAuth2} style={{ ...buttonStyle }}>Connect</button>
-                <button onClick={clearOAuth2} style={dangerButtonStyle}>Disconnect</button>
+                <button onClick={requestClearOAuth2} style={dangerButtonStyle}>Disconnect</button>
               </div>
               <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>Env: Client ID {secrets?.env?.has_client_id ? '✓' : '✗'}, Client Secret {secrets?.env?.has_client_secret ? '✓' : '✗'}</div>
             </div>
@@ -499,7 +619,7 @@ export default function AdminPage() {
             {accounts.map(acc => (
               <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
                 <span style={{ flex: 1 }}>{acc.handle}</span>
-                <button onClick={() => removeAccount(acc.id)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
+                <button onClick={() => removeAccount(acc.id, acc.handle)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
               </div>
             ))}
           </div>
@@ -516,7 +636,7 @@ export default function AdminPage() {
             {keywords.map(kw => (
               <div key={kw.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
                 <span style={{ flex: 1 }}>{kw.query}</span>
-                <button onClick={() => removeKeyword(kw.id)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
+                <button onClick={() => removeKeyword(kw.id, kw.query)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
               </div>
             ))}
           </div>
@@ -525,7 +645,7 @@ export default function AdminPage() {
         {/* Candidates */}
         <div style={sectionStyle}>
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Candidates</h2>
-          <button onClick={ingestNow} style={{ ...buttonStyle, marginBottom: 8 }}>Ingest Now</button>
+          <button onClick={requestIngestNow} style={{ ...buttonStyle, marginBottom: 8 }}>Ingest Now</button>
           <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
             {candidates.map(c => (
               <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto', alignItems: 'center', gap: 8, padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
@@ -825,7 +945,7 @@ export default function AdminPage() {
             {sources.map(s => (
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, marginBottom: 6, backgroundColor: 'white', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 12 }}>
                 <span style={{ flex: 1, wordBreak: 'break-word' }}>{s.url}{s.category ? ` (${s.category})` : ''}</span>
-                <button onClick={() => delSource(s.id)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
+                <button onClick={() => delSource(s.id, s.url)} style={{ ...dangerButtonStyle, padding: '4px 8px', fontSize: 12 }}>Delete</button>
               </div>
             ))}
           </div>
@@ -855,7 +975,7 @@ export default function AdminPage() {
           <div style={{ display: 'flex', gap: 6, flexDirection: 'column' }}>
             <input placeholder="Topic or context" value={bulkTopic} onChange={e => setBulkTopic(e.target.value)} style={inputStyle} />
             <input type="number" min={1} max={20} value={bulkCount} onChange={e => setBulkCount(parseInt(e.target.value || '1', 10))} placeholder="Count (1-20)" style={inputStyle} />
-            <button onClick={generateBulkPosts} style={buttonStyle}>Generate Posts</button>
+            <button onClick={requestGenerateBulkPosts} style={buttonStyle}>Generate Posts</button>
             <div style={{ fontSize: 11, color: '#666' }}>Generate up to 20 posts at once</div>
           </div>
         </div>
@@ -871,7 +991,7 @@ export default function AdminPage() {
                   <div style={{ fontWeight: 500 }}>{m.file_name.substring(0, 20)}</div>
                   <div style={{ color: '#666', fontSize: 10 }}>{(m.file_size / 1024).toFixed(1)} KB</div>
                 </div>
-                <button onClick={() => deleteMedia(m.id)} style={{ ...dangerButtonStyle, padding: '3px 6px', fontSize: 11 }}>Delete</button>
+                <button onClick={() => deleteMedia(m.id, m.file_name)} style={{ ...dangerButtonStyle, padding: '3px 6px', fontSize: 11 }}>Delete</button>
               </div>
             ))}
           </div>
@@ -919,6 +1039,83 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialogs */}
+      <ConfirmationDialog
+        isOpen={deleteConfirm.type === 'source'}
+        title="Delete RSS Source"
+        message={`Are you sure you want to delete this RSS source?\n\n${deleteConfirm.name}`}
+        isDangerous
+        confirmText="Delete"
+        onConfirm={confirmDeleteSource}
+        onCancel={() => setDeleteConfirm({ type: null })}
+        isLoading={deleting}
+      />
+
+      <ConfirmationDialog
+        isOpen={deleteConfirm.type === 'media'}
+        title="Delete Media"
+        message={`Are you sure you want to delete this media file?\n\n${deleteConfirm.name}`}
+        isDangerous
+        confirmText="Delete"
+        onConfirm={confirmDeleteMedia}
+        onCancel={() => setDeleteConfirm({ type: null })}
+        isLoading={deleting}
+      />
+
+      <ConfirmationDialog
+        isOpen={deleteConfirm.type === 'account'}
+        title="Remove X Account"
+        message={`Are you sure you want to remove this X account from monitoring?\n\n@${deleteConfirm.name}`}
+        isDangerous
+        confirmText="Remove"
+        onConfirm={confirmRemoveAccount}
+        onCancel={() => setDeleteConfirm({ type: null })}
+        isLoading={deleting}
+      />
+
+      <ConfirmationDialog
+        isOpen={deleteConfirm.type === 'keyword'}
+        title="Remove Keyword"
+        message={`Are you sure you want to remove this keyword from tracking?\n\n${deleteConfirm.name}`}
+        isDangerous
+        confirmText="Remove"
+        onConfirm={confirmRemoveKeyword}
+        onCancel={() => setDeleteConfirm({ type: null })}
+        isLoading={deleting}
+      />
+
+      <ConfirmationDialog
+        isOpen={deleteConfirm.type === 'oauth2'}
+        title="Clear OAuth2 Token"
+        message="Are you sure you want to clear the OAuth2 authentication token? You will need to reconnect your X account to post."
+        dangerMessage="This will disable X API posting until you reconnect."
+        isDangerous
+        confirmText="Clear Token"
+        onConfirm={confirmClearOAuth2}
+        onCancel={() => setDeleteConfirm({ type: null })}
+        isLoading={deleting}
+      />
+
+      <ConfirmationDialog
+        isOpen={generateConfirm}
+        title="Generate Bulk Posts"
+        message={`Generate ${bulkCount} post${bulkCount !== 1 ? 's' : ''} about "${bulkTopic}"?\n\nThis may take a minute depending on the number of posts.`}
+        confirmText="Generate"
+        onConfirm={confirmGenerateBulkPosts}
+        onCancel={() => setGenerateConfirm(false)}
+        isLoading={generating}
+      />
+
+      <ConfirmationDialog
+        isOpen={ingestConfirm}
+        title="Ingest Candidates"
+        message="Ingest new candidates from X and RSS sources? This will fetch recent posts and articles."
+        confirmText="Ingest"
+        onConfirm={confirmIngestNow}
+        onCancel={() => setIngestConfirm(false)}
+        isLoading={ingesting}
+      />
     </div>
   );
 }
