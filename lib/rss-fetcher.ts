@@ -44,6 +44,13 @@ export async function fetchRecentNews(): Promise<FeedItem[]> {
 
   for (const feedUrl of feedUrls) {
     try {
+      // Check if circuit breaker is open before attempting
+      const metrics = circuitBreaker.getMetrics();
+      if (metrics.state === 'OPEN') {
+        console.warn(`[rss-fetcher] Circuit breaker is OPEN, skipping feeds until recovery`);
+        break; // Stop trying feeds if circuit is open
+      }
+
       const recentItems = await circuitBreaker.execute(async () => {
         // Wrap fetch in Promise.race with timeout
         const feedPromise = parser.parseURL(feedUrl);
