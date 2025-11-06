@@ -1,6 +1,7 @@
 import { createHmac } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from './supabase';
+import { getCircuitBreaker } from './circuit-breaker';
 
 interface XApiConfig {
   apiKey: string;
@@ -228,90 +229,99 @@ export async function oauthFetch(url: string, method: string, body?: any, header
 }
 
 export async function postToX(text: string): Promise<PostResponse> {
+  const circuitBreaker = getCircuitBreaker('xApi');
+
   try {
-    const url = 'https://api.x.com/2/tweets';
-    const response = await oauthFetch(url, 'POST', JSON.stringify({ text }), { 'Content-Type': 'application/json' });
+    return await circuitBreaker.execute(async () => {
+      const url = 'https://api.x.com/2/tweets';
+      const response = await oauthFetch(url, 'POST', JSON.stringify({ text }), { 'Content-Type': 'application/json' });
 
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
 
-    const data = (await response.json()) as { data: { id: string } };
-    return { success: true, id: data.data.id };
+      const data = (await response.json()) as { data: { id: string } };
+      return { success: true, id: data.data.id };
+    });
   } catch (error) {
     return { success: false, error: String(error) };
   }
 }
 
 export async function postToXAdvanced(params: { text: string; media_ids?: string[]; quote_tweet_id?: string }): Promise<PostResponse> {
+  const circuitBreaker = getCircuitBreaker('xApi');
+
   try {
-    const url = 'https://api.x.com/2/tweets';
-    const payload: any = { text: params.text };
-    if (params.media_ids && params.media_ids.length > 0) payload.media = { media_ids: params.media_ids };
-    if (params.quote_tweet_id) payload.quote_tweet_id = params.quote_tweet_id;
-    const response = await oauthFetch(url, 'POST', JSON.stringify(payload), { 'Content-Type': 'application/json' });
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-    const data = (await response.json()) as { data: { id: string } };
-    return { success: true, id: data.data.id };
+    return await circuitBreaker.execute(async () => {
+      const url = 'https://api.x.com/2/tweets';
+      const payload: any = { text: params.text };
+      if (params.media_ids && params.media_ids.length > 0) payload.media = { media_ids: params.media_ids };
+      if (params.quote_tweet_id) payload.quote_tweet_id = params.quote_tweet_id;
+      const response = await oauthFetch(url, 'POST', JSON.stringify(payload), { 'Content-Type': 'application/json' });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+      const data = (await response.json()) as { data: { id: string } };
+      return { success: true, id: data.data.id };
+    });
   } catch (error) {
     return { success: false, error: String(error) };
   }
 }
 
 export async function uploadMediaFromUrl(imageUrl: string): Promise<{ success: boolean; media_id?: string; error?: string }> {
+  const circuitBreaker = getCircuitBreaker('xApi');
+
   // Auto-choose simple upload for <=5MB, else attempt chunked with optional resize
   try {
-    const res = await fetch(imageUrl, { headers: { 'User-Agent': 'X-AutoPoster/1.0' } });
-    if (!res.ok) return { success: false, error: `download failed: ${res.status}` };
-    const contentType = res.headers.get('content-type') || 'application/octet-stream';
-    let buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length <= 5 * 1024 * 1024) {
-      const b64 = buf.toString('base64');
-      const url = 'https://upload.twitter.com/1.1/media/upload.json';
-      const body = new URLSearchParams({ media_data: b64 });
-      const response = await oauthFetch(url, 'POST', body.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
-      if (!response.ok) {
-        const error = await response.text();
-        return { success: false, error };
+    return await circuitBreaker.execute(async () => {
+      const res = await fetch(imageUrl, { headers: { 'User-Agent': 'X-AutoPoster/1.0' } });
+      if (!res.ok) return { success: false, error: `download failed: ${res.status}` };
+      const contentType = res.headers.get('content-type') || 'application/octet-stream';
+      let buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length <= 5 * 1024 * 1024) {
+        const b64 = buf.toString('base64');
+        const url = 'https://upload.twitter.com/1.1/media/upload.json';
+        const body = new URLSearchParams({ media_data: b64 });
+        const response = await oauthFetch(url, 'POST', body.toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(error);
+        }
+        const data = (await response.json()) as { media_id_string?: string };
+        if (!data.media_id_string) throw new Error('no media id in response');
+        return { success: true, media_id: data.media_id_string };
       }
-      const data = (await response.json()) as { media_id_string?: string };
-      if (!data.media_id_string) return { success: false, error: 'no media id in response' };
-      return { success: true, media_id: data.media_id_string };
-    }
 
-    // Try to resize/compress if sharp is available
-    let compressionAttempted = false;
-    try {
-      const sharp = await import('sharp');
-      const img = sharp.default ? sharp.default(buf) : (sharp as any)(buf);
-      const resized = await img.resize({ width: 1600, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+      // Try to resize/compress if sharp is available
+      let compressionAttempted = false;
+      try {
+        const sharp = await import('sharp');
+        const img = sharp.default ? sharp.default(buf) : (sharp as any)(buf);
+        const resized = await img.resize({ width: 1600, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
 
-      // Check if compression was effective
-      if (resized.length < buf.length) {
-        buf = resized;
-        compressionAttempted = true;
-        console.log(`[x-api] Compressed image from ${buf.length} to ${resized.length} bytes`);
-      } else {
-        console.warn(`[x-api] Compression failed to reduce size, using original`);
+        // Check if compression was effective
+        if (resized.length < buf.length) {
+          buf = resized;
+          compressionAttempted = true;
+          console.log(`[x-api] Compressed image from ${buf.length} to ${resized.length} bytes`);
+        } else {
+          console.warn(`[x-api] Compression failed to reduce size, using original`);
+        }
+      } catch (e) {
+        console.warn(`[x-api] Image compression failed: ${String(e)}`);
       }
-    } catch (e) {
-      console.warn(`[x-api] Image compression failed: ${String(e)}`);
-    }
 
-    // Check final size - reject if still too large
-    const MAX_MEDIA_SIZE = 15 * 1024 * 1024; // 15MB is Twitter's limit
-    if (buf.length > MAX_MEDIA_SIZE) {
-      return {
-        success: false,
-        error: `Media exceeds size limit: ${(buf.length / 1024 / 1024).toFixed(2)}MB > 15MB. Compression${compressionAttempted ? ' was attempted but' : ' was not'} insufficient.`,
-      };
-    }
+      // Check final size - reject if still too large
+      const MAX_MEDIA_SIZE = 15 * 1024 * 1024; // 15MB is Twitter's limit
+      if (buf.length > MAX_MEDIA_SIZE) {
+        throw new Error(`Media exceeds size limit: ${(buf.length / 1024 / 1024).toFixed(2)}MB > 15MB. Compression${compressionAttempted ? ' was attempted but' : ' was not'} insufficient.`);
+      }
 
-    return await uploadMediaChunked(buf, contentType);
+      return await uploadMediaChunked(buf, contentType);
+    });
   } catch (e) {
     return { success: false, error: String(e) };
   }
@@ -371,38 +381,42 @@ export async function uploadMedia(
   buffer: ArrayBuffer | Uint8Array,
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 ): Promise<{ success: boolean; media_id?: string; expires_after_secs?: number; error?: string }> {
+  const circuitBreaker = getCircuitBreaker('xApi');
+
   try {
-    const config = await getXApiConfig();
-    const url = 'https://upload.twitter.com/1.1/media/upload.json';
+    return await circuitBreaker.execute(async () => {
+      const config = await getXApiConfig();
+      const url = 'https://upload.twitter.com/1.1/media/upload.json';
 
-    // Prepare form data
-    const formData = new FormData();
-    // Convert to Uint8Array if needed for Blob compatibility
-    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    // Use any type to bypass strict Blob typing issues
-    const blob = new Blob([bytes as any], { type: mediaType });
-    formData.append('media_data', blob);
+      // Prepare form data
+      const formData = new FormData();
+      // Convert to Uint8Array if needed for Blob compatibility
+      const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      // Use any type to bypass strict Blob typing issues
+      const blob = new Blob([bytes as any], { type: mediaType });
+      formData.append('media_data', blob);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: generateOAuthHeader('POST', url, {}, config),
-        'User-Agent': 'X-AutoPoster/1.0',
-      },
-      body: formData,
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: generateOAuthHeader('POST', url, {}, config),
+          'User-Agent': 'X-AutoPoster/1.0',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+
+      const data = (await response.json()) as { media_id_string: string; expires_after_secs?: number };
+      return {
+        success: true,
+        media_id: data.media_id_string,
+        expires_after_secs: data.expires_after_secs
+      };
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-
-    const data = (await response.json()) as { media_id_string: string; expires_after_secs?: number };
-    return {
-      success: true,
-      media_id: data.media_id_string,
-      expires_after_secs: data.expires_after_secs
-    };
   } catch (error) {
     return { success: false, error: String(error) };
   }
@@ -412,36 +426,40 @@ export async function postToXWithMedia(
   text: string,
   mediaIds: string[]
 ): Promise<{ success: boolean; id?: string; error?: string }> {
+  const circuitBreaker = getCircuitBreaker('xApi');
+
   try {
-    const config = await getXApiConfig();
-    const url = 'https://api.x.com/2/tweets';
+    return await circuitBreaker.execute(async () => {
+      const config = await getXApiConfig();
+      const url = 'https://api.x.com/2/tweets';
 
-    const authHeader = generateOAuthHeader('POST', url, {}, config);
+      const authHeader = generateOAuthHeader('POST', url, {}, config);
 
-    const body = {
-      text,
-      media: {
-        media_ids: mediaIds,
-      },
-    };
+      const body = {
+        text,
+        media: {
+          media_ids: mediaIds,
+        },
+      };
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: authHeader,
-        'Content-Type': 'application/json',
-        'User-Agent': 'X-AutoPoster/1.0',
-      },
-      body: JSON.stringify(body),
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
+          'User-Agent': 'X-AutoPoster/1.0',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+
+      const data = (await response.json()) as { data: { id: string } };
+      return { success: true, id: data.data.id };
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-
-    const data = (await response.json()) as { data: { id: string } };
-    return { success: true, id: data.data.id };
   } catch (error) {
     return { success: false, error: String(error) };
   }
@@ -451,22 +469,23 @@ export async function postToXWithLink(
   text: string,
   link: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
+  const circuitBreaker = getCircuitBreaker('xApi');
+
   try {
-    // Validate URL
-    new URL(link);
+    return await circuitBreaker.execute(async () => {
+      // Validate URL
+      new URL(link);
 
-    // Simply append link to text (URL cards are generated automatically by X)
-    const fullText = `${text}\n\n${link}`;
+      // Simply append link to text (URL cards are generated automatically by X)
+      const fullText = `${text}\n\n${link}`;
 
-    // Ensure text is within 280 character limit
-    if (fullText.length > 280) {
-      return {
-        success: false,
-        error: 'Text with link exceeds 280 character limit',
-      };
-    }
+      // Ensure text is within 280 character limit
+      if (fullText.length > 280) {
+        throw new Error('Text with link exceeds 280 character limit');
+      }
 
-    return postToX(fullText);
+      return postToX(fullText);
+    });
   } catch (error) {
     return { success: false, error: String(error) };
   }

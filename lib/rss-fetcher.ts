@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import { RSS_FEEDS, RSS_FEED_TIMEOUT_MS } from './constants';
 import { getSupabase } from '@/lib/supabase';
+import { getCircuitBreaker } from './circuit-breaker';
 
 const parser = new Parser();
 
@@ -28,6 +29,7 @@ async function fetchDbFeeds(): Promise<string[]> {
 }
 
 export async function fetchRecentNews(): Promise<FeedItem[]> {
+  const circuitBreaker = getCircuitBreaker('rssFeeds');
   const allFeeds: FeedItem[] = [];
   const dbFeeds = await fetchDbFeeds();
   const feedUrls = dbFeeds.length
@@ -42,23 +44,25 @@ export async function fetchRecentNews(): Promise<FeedItem[]> {
 
   for (const feedUrl of feedUrls) {
     try {
-      // Wrap fetch in Promise.race with timeout
-      const feedPromise = parser.parseURL(feedUrl);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Feed fetch timeout (${RSS_FEED_TIMEOUT_MS}ms)`)), RSS_FEED_TIMEOUT_MS)
-      );
+      const recentItems = await circuitBreaker.execute(async () => {
+        // Wrap fetch in Promise.race with timeout
+        const feedPromise = parser.parseURL(feedUrl);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Feed fetch timeout (${RSS_FEED_TIMEOUT_MS}ms)`)), RSS_FEED_TIMEOUT_MS)
+        );
 
-      const feed = await Promise.race([feedPromise, timeoutPromise]);
-      const recentItems = (feed as any).items
-        .slice(0, 3)
-        .map((item: any) => ({
-          title: item.title || 'Untitled',
-          link: item.link || '',
-          pubDate: item.pubDate,
-          contentSnippet: (item as any).contentSnippet || (item as any).content || '',
-          source: (feed as any).title || 'Unknown Source',
-          imageUrl: extractImage(item as any),
-        }));
+        const feed = await Promise.race([feedPromise, timeoutPromise]);
+        return (feed as any).items
+          .slice(0, 3)
+          .map((item: any) => ({
+            title: item.title || 'Untitled',
+            link: item.link || '',
+            pubDate: item.pubDate,
+            contentSnippet: (item as any).contentSnippet || (item as any).content || '',
+            source: (feed as any).title || 'Unknown Source',
+            imageUrl: extractImage(item as any),
+          }));
+      });
       allFeeds.push(...recentItems);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
