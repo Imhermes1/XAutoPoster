@@ -591,7 +591,7 @@ function SourcesTab({ onUpdate }: { onUpdate: () => void }) {
         fetch('/api/admin/x/accounts').then(r => r.json()),
         fetch('/api/admin/x/keywords').then(r => r.json()),
       ]);
-      setRssSources(rssRes.sources || []);
+      setRssSources(rssRes.data || rssRes.sources || []);
       setXAccounts(accountsRes.accounts || []);
       setXKeywords(keywordsRes.keywords || []);
     } catch (e) {
