@@ -1,6 +1,7 @@
 import { OpenAI } from 'openai';
 import { BRAND_VOICE_PROMPT, BRAND_VOICE_PRESETS } from './constants';
 import { createClient } from '@supabase/supabase-js';
+import { getLLMRateLimiter } from './rate-limiter';
 
 async function getClient(overrideApiKey?: string) {
   // 1) Use provided API key (preferred, passed explicitly from caller)
@@ -139,6 +140,17 @@ Make it shareable, informative, opinionated, and in your voice.`;
 
   console.log('[generatePost] Prompt length:', prompt.length, 'characters');
   console.log('[generatePost] Has custom instructions:', !!customInstructions);
+
+  // Apply rate limiting to prevent API overuse
+  const rateLimiter = getLLMRateLimiter();
+  const availableTokens = rateLimiter.getAvailableTokens();
+  console.log(`[generatePost] LLM rate limiter: ${availableTokens} tokens available`);
+
+  if (!(await rateLimiter.tryConsume(1))) {
+    const waitMs = rateLimiter.getWaitTime(1);
+    console.warn(`[generatePost] Rate limited. Waiting ${waitMs}ms before LLM call...`);
+    await rateLimiter.consume(1);
+  }
 
   const client = await getClient(apiKey);
   const model = await getSelectedModel();

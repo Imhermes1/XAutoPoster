@@ -421,14 +421,14 @@ export async function getRecentAutomationRuns(limit: number = 10) {
   }
 }
 
-export async function getRecentActivity(limit: number = 50) {
+export async function getRecentActivity(limit: number = 50, offset: number = 0) {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('activity_stream')
       .select('*')
       .order('timestamp', { ascending: false })
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('[getRecentActivity] Database error:', error.message);
