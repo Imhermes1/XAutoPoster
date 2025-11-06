@@ -175,9 +175,9 @@ export default function AnalyticsDashboard() {
               Content Variety
             </div>
             <div style={{ fontSize: 12, color: colors.gray[500], marginTop: 4 }}>
-              {data?.health.variety.warnings.length === 0
+              {(data?.health.variety.warnings?.length || 0) === 0
                 ? 'Diverse content'
-                : `${data?.health.variety.warnings.length} topic alerts`}
+                : `${data?.health.variety.warnings?.length || 0} topic alerts`}
             </div>
           </div>
 
@@ -203,12 +203,12 @@ export default function AnalyticsDashboard() {
         </div>
 
         {/* Warnings */}
-        {!data?.health.ready && (data?.health.variety.warnings.length || 0) > 0 && (
+        {!data?.health.ready && (data?.health.variety.warnings?.length || 0) > 0 && (
           <div style={{ padding: 12, backgroundColor: '#fef3c7', borderRadius: 8, borderLeft: `4px solid ${colors.warning}` }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: colors.warning, marginBottom: 8 }}>
               Content Variety Warnings:
             </div>
-            {data?.health.variety.warnings.map((warning: string, i: number) => (
+            {(data?.health.variety.warnings || []).map((warning: string, i: number) => (
               <div key={i} style={{ fontSize: 12, color: colors.gray[500], marginBottom: 4 }}>
                 • {warning}
               </div>
