@@ -40,22 +40,32 @@ export async function fetchRecentNews(): Promise<FeedItem[]> {
         ...RSS_FEEDS.appDev,
       ];
 
+  const FEED_TIMEOUT_MS = 10000; // 10 second timeout per feed
+
   for (const feedUrl of feedUrls) {
     try {
-      const feed = await parser.parseURL(feedUrl);
-      const recentItems = feed.items
+      // Wrap fetch in Promise.race with timeout
+      const feedPromise = parser.parseURL(feedUrl);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Feed fetch timeout (${FEED_TIMEOUT_MS}ms)`)), FEED_TIMEOUT_MS)
+      );
+
+      const feed = await Promise.race([feedPromise, timeoutPromise]);
+      const recentItems = (feed as any).items
         .slice(0, 3)
-        .map((item) => ({
+        .map((item: any) => ({
           title: item.title || 'Untitled',
           link: item.link || '',
           pubDate: item.pubDate,
           contentSnippet: (item as any).contentSnippet || (item as any).content || '',
-          source: feed.title || 'Unknown Source',
+          source: (feed as any).title || 'Unknown Source',
           imageUrl: extractImage(item as any),
         }));
       allFeeds.push(...recentItems);
     } catch (error) {
-      console.error(`Error fetching from ${feedUrl}:`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.warn(`[rss-fetcher] Error fetching from ${feedUrl}: ${errorMsg}`);
+      // Continue with next feed on error instead of failing entirely
     }
   }
 

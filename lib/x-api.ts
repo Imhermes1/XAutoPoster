@@ -129,45 +129,76 @@ async function getOAuth2Bearer(): Promise<string | null> {
 }
 
 async function refreshOAuth2Token(rowId: string, refresh_token: string): Promise<{ access_token: string; refresh_token?: string; expires_in?: number } | null> {
-  try {
-    const clientId = process.env.X_OAUTH_CLIENT_ID;
-    const clientSecret = process.env.X_OAUTH_CLIENT_SECRET;
-    const tokenUrl = 'https://api.twitter.com/2/oauth2/token';
-    const params = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token,
-      client_id: clientId || '',
-    });
-    const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
-    if (clientSecret) {
-      const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-      headers['Authorization'] = `Basic ${basic}`;
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS = [1000, 2000, 4000]; // 1s, 2s, 4s exponential backoff
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const clientId = process.env.X_OAUTH_CLIENT_ID;
+      const clientSecret = process.env.X_OAUTH_CLIENT_SECRET;
+      const tokenUrl = 'https://api.twitter.com/2/oauth2/token';
+      const params = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token,
+        client_id: clientId || '',
+      });
+      const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
+      if (clientSecret) {
+        const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+        headers['Authorization'] = `Basic ${basic}`;
+      }
+
+      const resp = await fetch(tokenUrl, {
+        method: 'POST',
+        headers,
+        body: params.toString(),
+      });
+
+      if (!resp.ok) {
+        const statusCode = resp.status;
+        const errorText = await resp.text();
+        console.warn(`[x-api] OAuth2 token refresh failed (attempt ${attempt + 1}/${MAX_RETRIES}): ${statusCode} - ${errorText}`);
+
+        // Retry on transient errors (5xx, 429), don't retry on permanent errors (4xx except 429)
+        if (statusCode < 400 || statusCode === 429 || statusCode >= 500) {
+          if (attempt < MAX_RETRIES - 1) {
+            const delayMs = RETRY_DELAYS[attempt];
+            console.log(`[x-api] Retrying OAuth2 token refresh in ${delayMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            continue;
+          }
+        }
+        return null;
+      }
+
+      const json = (await resp.json()) as any;
+      const access_token = json.access_token as string;
+      const expires_in = (json.expires_in as number) || 7200;
+      const new_refresh = (json.refresh_token as string) || refresh_token;
+
+      const supabase = getSupabase();
+      await supabase.from('automation_config').update({
+        oauth2_access_token: access_token,
+        oauth2_refresh_token: new_refresh,
+        oauth2_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
+        oauth2_scope: json.scope || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', rowId);
+
+      console.log(`[x-api] OAuth2 token refreshed successfully (attempt ${attempt + 1})`);
+      return { access_token, refresh_token: new_refresh, expires_in };
+    } catch (e) {
+      console.error(`[x-api] OAuth2 token refresh error (attempt ${attempt + 1}/${MAX_RETRIES}):`, String(e));
+      if (attempt < MAX_RETRIES - 1) {
+        const delayMs = RETRY_DELAYS[attempt];
+        console.log(`[x-api] Retrying OAuth2 token refresh in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
-
-    const resp = await fetch(tokenUrl, {
-      method: 'POST',
-      headers,
-      body: params.toString(),
-    });
-    if (!resp.ok) return null;
-    const json = (await resp.json()) as any;
-    const access_token = json.access_token as string;
-    const expires_in = (json.expires_in as number) || 7200;
-    const new_refresh = (json.refresh_token as string) || refresh_token;
-
-    const supabase = getSupabase();
-    await supabase.from('automation_config').update({
-      oauth2_access_token: access_token,
-      oauth2_refresh_token: new_refresh,
-      oauth2_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
-      oauth2_scope: json.scope || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', rowId);
-
-    return { access_token, refresh_token: new_refresh, expires_in };
-  } catch {
-    return null;
   }
+
+  console.error('[x-api] OAuth2 token refresh failed after 3 attempts');
+  return null;
 }
 
 export async function oauthFetch(url: string, method: string, body?: any, headers: Record<string, string> = {}): Promise<Response> {
@@ -253,12 +284,32 @@ export async function uploadMediaFromUrl(imageUrl: string): Promise<{ success: b
     }
 
     // Try to resize/compress if sharp is available
+    let compressionAttempted = false;
     try {
       const sharp = await import('sharp');
       const img = sharp.default ? sharp.default(buf) : (sharp as any)(buf);
       const resized = await img.resize({ width: 1600, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
-      buf = resized;
-    } catch {}
+
+      // Check if compression was effective
+      if (resized.length < buf.length) {
+        buf = resized;
+        compressionAttempted = true;
+        console.log(`[x-api] Compressed image from ${buf.length} to ${resized.length} bytes`);
+      } else {
+        console.warn(`[x-api] Compression failed to reduce size, using original`);
+      }
+    } catch (e) {
+      console.warn(`[x-api] Image compression failed: ${String(e)}`);
+    }
+
+    // Check final size - reject if still too large
+    const MAX_MEDIA_SIZE = 15 * 1024 * 1024; // 15MB is Twitter's limit
+    if (buf.length > MAX_MEDIA_SIZE) {
+      return {
+        success: false,
+        error: `Media exceeds size limit: ${(buf.length / 1024 / 1024).toFixed(2)}MB > 15MB. Compression${compressionAttempted ? ' was attempted but' : ' was not'} insufficient.`,
+      };
+    }
 
     return await uploadMediaChunked(buf, contentType);
   } catch (e) {
